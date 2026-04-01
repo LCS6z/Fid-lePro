@@ -1,0 +1,71 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+model Commercant {
+  id        String   @id @default(cuid())
+  nom       String
+  email     String   @unique
+  password  String
+  telephone String?
+  adresse   String?
+  createdAt DateTime @default(now())
+  cartes    Carte[]
+  avis      Avis[]
+}
+model Client {
+  id            String     @id @default(cuid())
+  nom           String
+  email         String     @unique
+  password      String
+  telephone     String?
+  dateNaissance DateTime?
+  qrCode        String?    @unique
+  createdAt     DateTime   @default(now())
+  tampons       Tampon[]
+  cashbacks     Cashback[]
+  avis          Avis[]
+}
+model Carte {
+  id            String     @id @default(cuid())
+  type          String
+  nom           String
+  maxTampons    Int?
+  seuilCashback Float?
+  recompense    Float?
+  commercant    Commercant @relation(fields: [commercantId], references: [id])
+  commercantId  String
+  tampons       Tampon[]
+  cashbacks     Cashback[]
+}
+model Tampon {
+  id        String   @id @default(cuid())
+  client    Client   @relation(fields: [clientId], references: [id])
+  clientId  String
+  carte     Carte    @relation(fields: [carteId], references: [id])
+  carteId   String
+  createdAt DateTime @default(now())
+}
+model Cashback {
+  id        String   @id @default(cuid())
+  montant   Float
+  client    Client   @relation(fields: [clientId], references: [id])
+  clientId  String
+  carte     Carte    @relation(fields: [carteId], references: [id])
+  carteId   String
+  createdAt DateTime @default(now())
+}
+model Avis {
+  id           String     @id @default(cuid())
+  note         Int
+  commentaire  String?
+  createdAt    DateTime   @default(now())
+  client       Client     @relation(fields: [clientId], references: [id])
+  clientId     String
+  commercant   Commercant @relation(fields: [commercantId], references: [id])
+  commercantId String
+}
