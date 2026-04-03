@@ -2,8 +2,21 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import {
+  ActivityIndicator,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
+import Animated, {
+  FadeInDown,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+} from 'react-native-reanimated';
 
 const API = 'https://fid-lepro-production.up.railway.app';
 
@@ -13,6 +26,7 @@ const GRIS = '#f5f5f5';
 const GRIS_TEXTE = '#333333';
 const GRIS_CLAIR = '#888888';
 const ROUGE = '#e74c3c';
+const VERT = '#2ecc71';
 
 type Client = {
   nom: string;
@@ -20,9 +34,72 @@ type Client = {
 };
 
 type Tampon = {
+  carteId: string;
+  carteName: string;
   commercant?: { nom: string };
   nombreTampons: number;
+  maxTampons: number;
+  recompense?: number | null;
 };
+
+function BarreProgression({ nombreTampons, maxTampons }: { nombreTampons: number; maxTampons: number }) {
+  const progression = Math.min(nombreTampons / maxTampons, 1);
+  const largeur = useSharedValue(0);
+
+  useEffect(() => {
+    largeur.value = withSpring(progression, { damping: 15, stiffness: 80 });
+  }, [nombreTampons, maxTampons]);
+
+  const barreStyle = useAnimatedStyle(() => ({
+    width: `${largeur.value * 100}%`,
+  }));
+
+  const estComplete = nombreTampons >= maxTampons;
+
+  return (
+    <View style={styles.barreContainer}>
+      <View style={styles.barreFond}>
+        <Animated.View
+          style={[
+            styles.barreRemplissage,
+            barreStyle,
+            estComplete && styles.barreComplete,
+          ]}
+        />
+      </View>
+      <Text style={styles.barreTexte}>
+        {nombreTampons}/{maxTampons} tampons
+        {estComplete ? ' 🎉 Récompense disponible !' : ''}
+      </Text>
+    </View>
+  );
+}
+
+function CarteTampon({ tampon, index }: { tampon: Tampon; index: number }) {
+  const estComplete = tampon.nombreTampons >= tampon.maxTampons;
+
+  return (
+    <Animated.View
+      entering={FadeInDown.duration(500).delay(index * 100).springify()}
+      style={[styles.card, estComplete && styles.cardComplete]}
+    >
+      <View style={styles.cardHeader}>
+        <Text style={styles.cardTitle}>{tampon.commercant?.nom ?? 'Commerce'}</Text>
+        {estComplete && <Text style={styles.badge}>🎁 Récompense</Text>}
+      </View>
+      <Text style={styles.cardSubtitle}>{tampon.carteName}</Text>
+      <BarreProgression
+        nombreTampons={tampon.nombreTampons}
+        maxTampons={tampon.maxTampons}
+      />
+      {tampon.recompense && (
+        <Text style={styles.recompenseTexte}>
+          Récompense : {tampon.recompense}€
+        </Text>
+      )}
+    </Animated.View>
+  );
+}
 
 export default function DashboardClient() {
   const [client, setClient] = useState<Client | null>(null);
@@ -38,11 +115,11 @@ export default function DashboardClient() {
       }
       try {
         const res = await axios.get(API + '/api/client/profil', {
-          headers: { Authorization: 'Bearer ' + token }
+          headers: { Authorization: 'Bearer ' + token },
         });
         setClient(res.data);
         const res2 = await axios.get(API + '/api/client/tampons', {
-          headers: { Authorization: 'Bearer ' + token }
+          headers: { Authorization: 'Bearer ' + token },
         });
         setTampons(res2.data);
       } catch (e) {
@@ -64,10 +141,23 @@ export default function DashboardClient() {
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.title}>FidèlePro</Text>
-      <Text style={styles.subtitle}>Bonjour {client?.nom} !</Text>
+      <Animated.Text
+        entering={FadeInDown.duration(600).springify()}
+        style={styles.title}
+      >
+        FidèlePro
+      </Animated.Text>
+      <Animated.Text
+        entering={FadeInDown.duration(600).delay(100).springify()}
+        style={styles.subtitle}
+      >
+        Bonjour {client?.nom} ! 👋
+      </Animated.Text>
 
-      <View style={styles.qrContainer}>
+      <Animated.View
+        entering={FadeInDown.duration(600).delay(200).springify()}
+        style={styles.qrContainer}
+      >
         <Text style={styles.sectionTitle}>Mon QR Code</Text>
         {client?.qrCode ? (
           <QRCode value={client.qrCode} size={200} />
@@ -75,18 +165,24 @@ export default function DashboardClient() {
           <Text>QR code non disponible</Text>
         )}
         <Text style={styles.qrLabel}>Présente ce code au commerçant</Text>
-      </View>
+      </Animated.View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Mes tampons</Text>
+        <Text style={styles.sectionTitle}>Ma fidélité</Text>
         {tampons.length === 0 ? (
-          <Text style={styles.empty}>Aucun tampon pour le moment</Text>
+          <Animated.View
+            entering={FadeInDown.duration(600).delay(300).springify()}
+            style={styles.emptyContainer}
+          >
+            <Text style={styles.emptyIcon}>🎯</Text>
+            <Text style={styles.empty}>Aucun tampon pour le moment</Text>
+            <Text style={styles.emptySubtitle}>
+              Scanne ton QR code chez un commerçant pour commencer !
+            </Text>
+          </Animated.View>
         ) : (
           tampons.map((t, i) => (
-            <View key={i} style={styles.card}>
-              <Text style={styles.cardTitle}>{t.commercant?.nom ?? 'Commerce'}</Text>
-              <Text style={styles.cardText}>{t.nombreTampons} tampon(s)</Text>
-            </View>
+            <CarteTampon key={t.carteId} tampon={t} index={i} />
           ))
         )}
       </View>
@@ -123,6 +219,11 @@ const styles = StyleSheet.create({
     padding: 24,
     marginBottom: 24,
     width: '100%',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 4,
   },
   sectionTitle: {
     fontSize: 18,
@@ -141,24 +242,88 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: BLANC,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 10,
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 12,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  cardComplete: {
+    borderWidth: 2,
+    borderColor: VERT,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
   },
   cardTitle: {
     fontSize: 16,
     fontWeight: 'bold',
     color: GRIS_TEXTE,
   },
-  cardText: {
-    fontSize: 14,
-    color: '#666666',
-    marginTop: 4,
+  cardSubtitle: {
+    fontSize: 13,
+    color: GRIS_CLAIR,
+    marginBottom: 12,
+  },
+  badge: {
+    fontSize: 12,
+    color: VERT,
+    fontWeight: 'bold',
+  },
+  barreContainer: {
+    width: '100%',
+  },
+  barreFond: {
+    height: 12,
+    backgroundColor: '#eeeeee',
+    borderRadius: 6,
+    overflow: 'hidden',
+    marginBottom: 6,
+  },
+  barreRemplissage: {
+    height: '100%',
+    backgroundColor: VIOLET,
+    borderRadius: 6,
+  },
+  barreComplete: {
+    backgroundColor: VERT,
+  },
+  barreTexte: {
+    fontSize: 12,
+    color: GRIS_CLAIR,
+  },
+  recompenseTexte: {
+    marginTop: 8,
+    fontSize: 13,
+    color: VERT,
+    fontWeight: '600',
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    backgroundColor: BLANC,
+    borderRadius: 16,
+    padding: 32,
+  },
+  emptyIcon: {
+    fontSize: 48,
+    marginBottom: 12,
   },
   empty: {
-    color: '#aaaaaa',
+    color: GRIS_TEXTE,
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 8,
+  },
+  emptySubtitle: {
+    color: GRIS_CLAIR,
+    fontSize: 13,
     textAlign: 'center',
-    padding: 20,
   },
   button: {
     backgroundColor: ROUGE,
