@@ -5,23 +5,24 @@ const { verifierToken, verifierRole } = require('../middleware/auth')
 
 const prisma = new PrismaClient()
 
-// Le commerçant scanne le QR code d'un client
-router.post('/scanner', verifierToken, verifierRole('commercant'), async (req, res) => {
+// POST /api/scan — le commerçant scanne le QR code d'un client
+router.post('/', verifierToken, verifierRole('commercant'), async (req, res) => {
   try {
-    const { qrCode, carteId } = req.body
+    const { qrCode } = req.body
+    const commercantId = req.user.id
 
     // Trouver le client via son QR code
     const client = await prisma.client.findUnique({ where: { qrCode } })
     if (!client) return res.status(404).json({ message: 'Client introuvable' })
 
-    // Vérifier que la carte appartient bien au commerçant
+    // Trouver la première carte active du commerçant
     const carte = await prisma.carte.findFirst({
-      where: { id: carteId, commercantId: req.user.id }
+      where: { commercantId }
     })
-    if (!carte) return res.status(404).json({ message: 'Carte introuvable' })
+    if (!carte) return res.status(404).json({ message: 'Aucune carte fidélité configurée' })
 
     // Ajouter un tampon
-    const tampon = await prisma.tampon.create({
+    await prisma.tampon.create({
       data: { clientId: client.id, carteId: carte.id }
     })
 
@@ -33,12 +34,12 @@ router.post('/scanner', verifierToken, verifierRole('commercant'), async (req, r
     // Vérifier si récompense débloquée
     let recompense = null
     if (carte.maxTampons && totalTampons >= carte.maxTampons) {
-      recompense = `Félicitations ! Récompense débloquée : ${carte.recompense}`
+      recompense = `Récompense débloquée : ${carte.recompense}€ !`
     }
 
     res.json({
       message: 'Tampon ajouté avec succès !',
-      client: client.nom,
+      client: { nom: client.nom },
       totalTampons,
       recompense
     })
