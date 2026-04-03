@@ -85,7 +85,7 @@ router.post('/inscription-commercant', async (req, res) => {
 })
 
 // POST /api/stripe/webhook
-router.post('/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
+router.post('/webhook', async (req, res) => {
   const sig = req.headers['stripe-signature']
   let event
 
