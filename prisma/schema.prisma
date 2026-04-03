@@ -6,17 +6,25 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
 model Commercant {
-  id        String   @id @default(cuid())
-  nom       String
-  email     String   @unique
-  password  String
-  telephone String?
-  adresse   String?
-  createdAt DateTime @default(now())
-  cartes    Carte[]
-  avis      Avis[]
+  id                   String   @id @default(cuid())
+  nom                  String
+  email                String   @unique
+  password             String
+  telephone            String?
+  adresse              String?
+  createdAt            DateTime @default(now())
+
+  stripeCustomerId     String?
+  stripeSubscriptionId String?
+  stripeSetupPaid      Boolean  @default(false)
+  statutAbonnement     String   @default("inactif")
+
+  cartes               Carte[]
+  avis                 Avis[]
 }
+
 model Client {
   id            String     @id @default(cuid())
   nom           String
@@ -30,6 +38,7 @@ model Client {
   cashbacks     Cashback[]
   avis          Avis[]
 }
+
 model Carte {
   id            String     @id @default(cuid())
   type          String
@@ -42,6 +51,7 @@ model Carte {
   tampons       Tampon[]
   cashbacks     Cashback[]
 }
+
 model Tampon {
   id        String   @id @default(cuid())
   client    Client   @relation(fields: [clientId], references: [id])
@@ -50,6 +60,7 @@ model Tampon {
   carteId   String
   createdAt DateTime @default(now())
 }
+
 model Cashback {
   id        String   @id @default(cuid())
   montant   Float
@@ -59,6 +70,7 @@ model Cashback {
   carteId   String
   createdAt DateTime @default(now())
 }
+
 model Avis {
   id           String     @id @default(cuid())
   note         Int
