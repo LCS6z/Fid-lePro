@@ -163,6 +163,9 @@ export default function Login() {
         >
           <Text style={styles.registerText}>Pas encore de compte ? S'inscrire</Text>
         </TouchableOpacity>
+        <TouchableOpacity onPress={() => router.push('/inscription-commercant')} style={styles.registerLink}>
+  <Text style={styles.registerText}>Vous êtes commerçant ? S'inscrire ici</Text>
+</TouchableOpacity>
       </Animated.View>
     </KeyboardAvoidingView>
   );
