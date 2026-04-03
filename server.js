@@ -7,8 +7,8 @@ dotenv.config()
 const app = express()
 app.use(cors())
 
-// Webhook Stripe AVANT express.json() - body brut uniquement pour cette route
-const stripeWebhook = require('./routes/stripe')
+// Webhook Stripe AVANT express.json()
+const stripeRoutes = require('./routes/stripe')
 app.use('/api/stripe/webhook', express.raw({ type: 'application/json' }))
 
 app.use(express.json())
@@ -18,7 +18,7 @@ const authRoutes = require('./routes/auth')
 const scanRoutes = require('./routes/scan')
 const commercantRoutes = require('./routes/commercant')
 const clientRoutes = require('./routes/client')
-const stripeRoutes = require('./routes/stripe')
+const adminRoutes = require('./routes/admin')
 const { verifierToken, verifierRole } = require('./middleware/auth')
 
 // Route protégée test commerçant
@@ -31,6 +31,7 @@ app.use('/api/scan', scanRoutes)
 app.use('/api/commercant', commercantRoutes)
 app.use('/api/client', clientRoutes)
 app.use('/api/stripe', stripeRoutes)
+app.use('/api/admin', adminRoutes)
 
 // Route de test
 app.get('/', (req, res) => {

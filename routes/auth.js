@@ -112,5 +112,31 @@ router.post('/connexion/commercant', async (req, res) => {
     res.status(500).json({ message: 'Erreur serveur', erreur: err.message })
   }
 })
+// Connexion admin
+router.post('/connexion/admin', async (req, res) => {
+  try {
+    const { email, password } = req.body
 
+    const admin = await prisma.admin.findUnique({ where: { email } })
+    if (!admin) return res.status(400).json({ message: 'Email ou mot de passe incorrect' })
+
+    const valide = await bcrypt.compare(password, admin.password)
+    if (!valide) return res.status(400).json({ message: 'Email ou mot de passe incorrect' })
+
+    const token = jwt.sign(
+      { id: admin.id, role: 'admin' },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    )
+
+    res.json({
+      message: 'Connexion réussie',
+      token,
+      role: 'admin',
+      admin: { id: admin.id, nom: admin.nom, email: admin.email }
+    })
+  } catch (err) {
+    res.status(500).json({ message: 'Erreur serveur', erreur: err.message })
+  }
+})
 module.exports = router
