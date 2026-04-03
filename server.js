@@ -6,6 +6,11 @@ dotenv.config()
 
 const app = express()
 app.use(cors())
+
+// Webhook Stripe AVANT express.json()
+const stripeRoutes = require('./routes/stripe')
+app.use('/api/stripe', stripeRoutes)
+
 app.use(express.json())
 
 // Routes
@@ -13,7 +18,6 @@ const authRoutes = require('./routes/auth')
 const scanRoutes = require('./routes/scan')
 const commercantRoutes = require('./routes/commercant')
 const clientRoutes = require('./routes/client')
-const stripeRoutes = require('./routes/stripe')
 const { verifierToken, verifierRole } = require('./middleware/auth')
 
 // Route protégée test commerçant
@@ -25,7 +29,6 @@ app.use('/api/auth', authRoutes)
 app.use('/api/scan', scanRoutes)
 app.use('/api/commercant', commercantRoutes)
 app.use('/api/client', clientRoutes)
-app.use('/api/stripe', stripeRoutes)
 
 // Route de test
 app.get('/', (req, res) => {
