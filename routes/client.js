@@ -5,12 +5,25 @@ const { verifierToken, verifierRole } = require('../middleware/auth')
 
 const prisma = new PrismaClient()
 
-// Le client voit sa progression sur toutes ses cartes
-router.get('/progression', verifierToken, verifierRole('client'), async (req, res) => {
+// GET /api/client/profil
+router.get('/profil', verifierToken, verifierRole('client'), async (req, res) => {
+  try {
+    const client = await prisma.client.findUnique({
+      where: { id: req.user.id },
+      select: { id: true, nom: true, email: true, qrCode: true, createdAt: true }
+    })
+    if (!client) return res.status(404).json({ message: 'Client introuvable' })
+    res.json(client)
+  } catch (err) {
+    res.status(500).json({ message: 'Erreur serveur', erreur: err.message })
+  }
+})
+
+// GET /api/client/tampons
+router.get('/tampons', verifierToken, verifierRole('client'), async (req, res) => {
   try {
     const clientId = req.user.id
 
-    // Récupérer tous les tampons du client groupés par carte
     const tampons = await prisma.tampon.findMany({
       where: { clientId },
       include: {
@@ -21,6 +34,42 @@ router.get('/progression', verifierToken, verifierRole('client'), async (req, re
     })
 
     // Grouper par carte
+    const groupes = {}
+    tampons.forEach(tampon => {
+      const carteId = tampon.carteId
+      if (!groupes[carteId]) {
+        groupes[carteId] = {
+          carteId,
+          carteName: tampon.carte.nom,
+          commercant: { nom: tampon.carte.commercant.nom },
+          nombreTampons: 0,
+          maxTampons: tampon.carte.maxTampons || 10,
+          recompense: tampon.carte.recompense || null,
+        }
+      }
+      groupes[carteId].nombreTampons++
+    })
+
+    res.json(Object.values(groupes))
+  } catch (err) {
+    res.status(500).json({ message: 'Erreur serveur', erreur: err.message })
+  }
+})
+
+// GET /api/client/progression
+router.get('/progression', verifierToken, verifierRole('client'), async (req, res) => {
+  try {
+    const clientId = req.user.id
+
+    const tampons = await prisma.tampon.findMany({
+      where: { clientId },
+      include: {
+        carte: {
+          include: { commercant: true }
+        }
+      }
+    })
+
     const progression = {}
     tampons.forEach(tampon => {
       const carteId = tampon.carteId
@@ -41,17 +90,16 @@ router.get('/progression', verifierToken, verifierRole('client'), async (req, re
     res.status(500).json({ message: 'Erreur serveur', erreur: err.message })
   }
 })
-// Le client laisse un avis sur un commerce
+
+// POST /api/client/avis
 router.post('/avis', verifierToken, verifierRole('client'), async (req, res) => {
   try {
     const { commercantId, note, commentaire } = req.body
 
-    // Vérifier que la note est entre 1 et 5
     if (note < 1 || note > 5) {
       return res.status(400).json({ message: 'La note doit être entre 1 et 5' })
     }
 
-    // Vérifier que le client a déjà scanné dans ce commerce
     const tampons = await prisma.tampon.findFirst({
       where: {
         clientId: req.user.id,
@@ -64,7 +112,6 @@ router.post('/avis', verifierToken, verifierRole('client'), async (req, res) => 
       return res.status(400).json({ message: 'Vous devez avoir scanné au moins une fois dans ce commerce pour laisser un avis' })
     }
 
-    // Créer l'avis
     const avis = await prisma.avis.create({
       data: {
         note,
@@ -80,7 +127,7 @@ router.post('/avis', verifierToken, verifierRole('client'), async (req, res) => 
   }
 })
 
-// Voir les avis d'un commerce
+// GET /api/client/avis/:commercantId
 router.get('/avis/:commercantId', async (req, res) => {
   try {
     const { commercantId } = req.params
@@ -100,4 +147,5 @@ router.get('/avis/:commercantId', async (req, res) => {
     res.status(500).json({ message: 'Erreur serveur', erreur: err.message })
   }
 })
+
 module.exports = router
