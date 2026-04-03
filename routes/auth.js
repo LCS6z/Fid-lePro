@@ -16,11 +16,12 @@ router.post('/inscription/client', async (req, res) => {
     if (existant) return res.status(400).json({ message: 'Email déjà utilisé' })
 
     const hash = await bcrypt.hash(password, 10)
+    const qrCode = uuidv4()
 
-const qrCode = uuidv4()
-const client = await prisma.client.create({
-  data: { nom, email, password: hash, qrCode }
-})
+    const client = await prisma.client.create({
+      data: { nom, email, password: hash, qrCode }
+    })
+
     res.json({ message: 'Compte créé avec succès', client })
   } catch (err) {
     res.status(500).json({ message: 'Erreur serveur', erreur: err.message })
@@ -38,28 +39,13 @@ router.post('/connexion/client', async (req, res) => {
     const valide = await bcrypt.compare(password, client.password)
     if (!valide) return res.status(400).json({ message: 'Email ou mot de passe incorrect' })
 
-    const token = jwt.sign({ id: client.id, role: 'client' }, process.env.JWT_SECRET, { expiresIn: '7d' })
+    const token = jwt.sign(
+      { id: client.id, role: 'client' },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    )
 
-    res.json({ message: 'Connexion réussie', token })
-  } catch (err) {
-    res.status(500).json({ message: 'Erreur serveur', erreur: err.message })
-  }
-})
-// Inscription commerçant
-router.post('/inscription/commercant', async (req, res) => {
-  try {
-    const { nom, email, password, telephone, adresse } = req.body
-
-    const existant = await prisma.commercant.findUnique({ where: { email } })
-    if (existant) return res.status(400).json({ message: 'Email déjà utilisé' })
-
-    const hash = await bcrypt.hash(password, 10)
-
-    const commercant = await prisma.commercant.create({
-      data: { nom, email, password: hash, telephone, adresse }
-    })
-
-    res.json({ message: 'Compte commerçant créé avec succès', commercant })
+    res.json({ message: 'Connexion réussie', token, role: 'client' })
   } catch (err) {
     res.status(500).json({ message: 'Erreur serveur', erreur: err.message })
   }
@@ -76,11 +62,55 @@ router.post('/connexion/commercant', async (req, res) => {
     const valide = await bcrypt.compare(password, commercant.password)
     if (!valide) return res.status(400).json({ message: 'Email ou mot de passe incorrect' })
 
-    const token = jwt.sign({ id: commercant.id, role: 'commercant' }, process.env.JWT_SECRET, { expiresIn: '7d' })
+    // Vérification statut abonnement
+    if (commercant.statutAbonnement === 'inactif') {
+      return res.status(403).json({
+        message: 'Votre compte est en attente de paiement.',
+        statut: 'inactif'
+      })
+    }
 
-    res.json({ message: 'Connexion réussie', token })
+    if (commercant.statutAbonnement === 'suspendu') {
+      return res.status(403).json({
+        message: 'Votre compte est suspendu. Contactez le support.',
+        statut: 'suspendu'
+      })
+    }
+
+    if (commercant.statutAbonnement === 'résilié') {
+      return res.status(403).json({
+        message: 'Votre abonnement est résilié.',
+        statut: 'résilié'
+      })
+    }
+
+    if (commercant.statutAbonnement === 'impayé') {
+      return res.status(403).json({
+        message: 'Votre abonnement est impayé. Veuillez régulariser votre situation.',
+        statut: 'impayé'
+      })
+    }
+
+    const token = jwt.sign(
+      { id: commercant.id, role: 'commercant' },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    )
+
+    res.json({
+      message: 'Connexion réussie',
+      token,
+      role: 'commercant',
+      commercant: {
+        id: commercant.id,
+        nom: commercant.nom,
+        email: commercant.email,
+        statutAbonnement: commercant.statutAbonnement
+      }
+    })
   } catch (err) {
     res.status(500).json({ message: 'Erreur serveur', erreur: err.message })
   }
 })
+
 module.exports = router
