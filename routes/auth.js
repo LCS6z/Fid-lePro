@@ -3,9 +3,9 @@ const router = express.Router()
 const bcrypt = require('bcrypt')
 const jwt = require('jsonwebtoken')
 const { PrismaClient } = require('@prisma/client')
-const QRCode = require('qrcode')
 const { v4: uuidv4 } = require('uuid')
 const prisma = new PrismaClient()
+const { envoyerBienvenueClient } = require('../services/email')
 
 // Inscription client
 router.post('/inscription/client', async (req, res) => {
@@ -21,6 +21,12 @@ router.post('/inscription/client', async (req, res) => {
     const client = await prisma.client.create({
       data: { nom, email, password: hash, qrCode }
     })
+
+    try {
+      await envoyerBienvenueClient(email, nom)
+    } catch (e) {
+      console.log('Erreur email bienvenue client:', e)
+    }
 
     res.json({ message: 'Compte créé avec succès', client })
   } catch (err) {
@@ -62,7 +68,6 @@ router.post('/connexion/commercant', async (req, res) => {
     const valide = await bcrypt.compare(password, commercant.password)
     if (!valide) return res.status(400).json({ message: 'Email ou mot de passe incorrect' })
 
-    // Vérification statut abonnement
     if (commercant.statutAbonnement === 'inactif') {
       return res.status(403).json({
         message: 'Votre compte est en attente de paiement.',
@@ -112,6 +117,7 @@ router.post('/connexion/commercant', async (req, res) => {
     res.status(500).json({ message: 'Erreur serveur', erreur: err.message })
   }
 })
+
 // Connexion admin
 router.post('/connexion/admin', async (req, res) => {
   try {
@@ -139,4 +145,5 @@ router.post('/connexion/admin', async (req, res) => {
     res.status(500).json({ message: 'Erreur serveur', erreur: err.message })
   }
 })
+
 module.exports = router

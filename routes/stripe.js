@@ -3,6 +3,7 @@ const router = express.Router()
 const Stripe = require('stripe')
 const bcrypt = require('bcrypt')
 const { PrismaClient } = require('@prisma/client')
+const { envoyerBienvenueCommercant, envoyerConfirmationPaiement, envoyerEchecPaiement } = require('../services/email')
 
 const stripe = Stripe(process.env.STRIPE_SECRET_KEY)
 const prisma = new PrismaClient()
@@ -42,8 +43,6 @@ router.post('/inscription-commercant', async (req, res) => {
       },
     })
 
-    // Étape 1 : paiement one-shot 150€
-    // Après paiement réussi, le webhook crée l'abonnement 49€/mois
     const session = await stripe.checkout.sessions.create({
       customer: stripeCustomer.id,
       payment_method_types: ['card'],
@@ -113,7 +112,6 @@ router.post('/webhook', async (req, res) => {
           return res.json({ reçu: true })
         }
 
-        // Créer l'abonnement 49€/mois avec démarrage dans 30 jours
         const abonnement = await stripe.subscriptions.create({
           customer: commercant.stripeCustomerId,
           items: [
@@ -130,7 +128,6 @@ router.post('/webhook', async (req, res) => {
           proration_behavior: 'none',
         })
 
-        // Activer le compte commerçant
         await prisma.commercant.update({
           where: { id: commercantId },
           data: {
@@ -139,6 +136,14 @@ router.post('/webhook', async (req, res) => {
             stripeSubscriptionId: abonnement.id,
           },
         })
+
+        // Envoi emails
+        try {
+          await envoyerBienvenueCommercant(commercant.email, commercant.nom)
+          await envoyerConfirmationPaiement(commercant.email, commercant.nom, 150)
+        } catch (e) {
+          console.log('Erreur email bienvenue commercant:', e)
+        }
 
         console.log(`Commerçant ${commercantId} activé, abonnement démarré dans 30 jours`)
 
@@ -158,6 +163,15 @@ router.post('/webhook', async (req, res) => {
         where: { stripeCustomerId: customerId },
         data: { statutAbonnement: 'impayé' },
       })
+
+      // Envoi email échec paiement
+      try {
+        const commercant = await prisma.commercant.findFirst({ where: { stripeCustomerId: customerId } })
+        if (commercant) await envoyerEchecPaiement(commercant.email, commercant.nom)
+      } catch (e) {
+        console.log('Erreur email echec paiement:', e)
+      }
+
       console.log(`Commerçant ${customerId} marqué impayé`)
     } catch (err) {
       console.error('Erreur mise à jour impayé:', err)
@@ -182,6 +196,7 @@ router.post('/webhook', async (req, res) => {
 
   res.json({ reçu: true })
 })
+
 // POST /api/stripe/setup-sepa
 router.post('/setup-sepa', async (req, res) => {
   const { commercantId } = req.body
@@ -203,7 +218,6 @@ router.post('/setup-sepa', async (req, res) => {
       return res.status(400).json({ erreur: 'Aucun client Stripe associé' })
     }
 
-    // Session pour collecter l'IBAN via Stripe
     const session = await stripe.checkout.sessions.create({
       customer: commercant.stripeCustomerId,
       payment_method_types: ['sepa_debit'],
