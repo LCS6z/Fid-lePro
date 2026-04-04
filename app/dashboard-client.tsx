@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Linking,
   Modal,
   ScrollView,
   StyleSheet,
@@ -167,25 +168,26 @@ export default function DashboardClient() {
   };
 
   const ouvrirAvis = async (commercantId: string, commercantNom: string) => {
-  const token = await AsyncStorage.getItem('token');
-  try {
-    const res = await axios.get(API + '/api/client/commercant/' + commercantId, {
-      headers: { Authorization: 'Bearer ' + token },
-    });
-    const lienGoogle = res.data.lienGoogle;
-    if (lienGoogle) {
-      Linking.openURL(lienGoogle);
-    } else {
+    const token = await AsyncStorage.getItem('token');
+    try {
+      const res = await axios.get(API + '/api/client/commercant/' + commercantId, {
+        headers: { Authorization: 'Bearer ' + token },
+      });
+      const lienGoogle = res.data?.lienGoogle;
+      if (lienGoogle && lienGoogle.startsWith('http')) {
+        await Linking.openURL(lienGoogle);
+      } else {
+        setNote(0);
+        setCommentaire('');
+        setAvisModal({ visible: true, commercantId, commercantNom });
+      }
+    } catch (e) {
+      console.log('Erreur avis:', e);
       setNote(0);
       setCommentaire('');
       setAvisModal({ visible: true, commercantId, commercantNom });
     }
-  } catch {
-    setNote(0);
-    setCommentaire('');
-    setAvisModal({ visible: true, commercantId, commercantNom });
-  }
-};
+  };
 
   const soumettreAvis = async () => {
     if (note === 0) {
@@ -251,7 +253,6 @@ export default function DashboardClient() {
         <Text style={styles.buttonText}>Se déconnecter</Text>
       </TouchableOpacity>
 
-      {/* Modal Avis */}
       <Modal visible={avisModal.visible} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <Animated.View entering={FadeInDown.duration(400).springify()} style={styles.modalCard}>
