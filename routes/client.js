@@ -39,9 +39,9 @@ router.get('/tampons', verifierToken, verifierRole('client'), async (req, res) =
       const carteId = tampon.carteId
       if (!groupes[carteId]) {
         groupes[carteId] = {
-          carteId,
-          carteName: tampon.carte.nom,
-          commercant: { nom: tampon.carte.commercant.nom },
+  carteId,
+  carteName: tampon.carte.nom,
+  commercant: { nom: tampon.carte.commercant.nom, id: tampon.carte.commercant.id },
           nombreTampons: 0,
           maxTampons: tampon.carte.maxTampons || 10,
           recompense: tampon.carte.recompense || null,
