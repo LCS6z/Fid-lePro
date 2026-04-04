@@ -160,5 +160,17 @@ router.get('/avis/:commercantId', async (req, res) => {
     res.status(500).json({ message: 'Erreur serveur', erreur: err.message })
   }
 })
-
+// POST /api/client/fcm-token
+router.post('/fcm-token', verifierToken, verifierRole('client'), async (req, res) => {
+  try {
+    const { fcmToken } = req.body
+    await prisma.client.update({
+      where: { id: req.user.id },
+      data: { fcmToken }
+    })
+    res.json({ message: 'Token FCM enregistré' })
+  } catch (err) {
+    res.status(500).json({ message: 'Erreur serveur', erreur: err.message })
+  }
+})
 module.exports = router
