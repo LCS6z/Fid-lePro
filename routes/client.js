@@ -33,15 +33,14 @@ router.get('/tampons', verifierToken, verifierRole('client'), async (req, res) =
       }
     })
 
-    // Grouper par carte
     const groupes = {}
     tampons.forEach(tampon => {
       const carteId = tampon.carteId
       if (!groupes[carteId]) {
         groupes[carteId] = {
-  carteId,
-  carteName: tampon.carte.nom,
-  commercant: { nom: tampon.carte.commercant.nom, id: tampon.carte.commercant.id },
+          carteId,
+          carteName: tampon.carte.nom,
+          commercant: { nom: tampon.carte.commercant.nom, id: tampon.carte.commercant.id },
           nombreTampons: 0,
           maxTampons: tampon.carte.maxTampons || 10,
           recompense: tampon.carte.recompense || null,
@@ -51,6 +50,20 @@ router.get('/tampons', verifierToken, verifierRole('client'), async (req, res) =
     })
 
     res.json(Object.values(groupes))
+  } catch (err) {
+    res.status(500).json({ message: 'Erreur serveur', erreur: err.message })
+  }
+})
+
+// GET /api/client/commercant/:id
+router.get('/commercant/:id', verifierToken, async (req, res) => {
+  try {
+    const commercant = await prisma.commercant.findUnique({
+      where: { id: req.params.id },
+      select: { id: true, nom: true, lienGoogle: true }
+    })
+    if (!commercant) return res.status(404).json({ message: 'Introuvable' })
+    res.json(commercant)
   } catch (err) {
     res.status(500).json({ message: 'Erreur serveur', erreur: err.message })
   }
