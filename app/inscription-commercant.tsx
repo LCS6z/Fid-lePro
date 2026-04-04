@@ -262,7 +262,7 @@ export default function InscriptionCommercant() {
                 </View>
                 <Text style={styles.cgvTexte}>
                   J'accepte les{' '}
-                  <Text style={styles.cgvLien}>conditions générales de vente</Text>
+                  <Text style={styles.cgvLien} onPress={() => router.push('/cgv')}>conditions générales de vente</Text>
                 </Text>
               </TouchableOpacity>
 
