@@ -42,6 +42,7 @@ model Client {
   telephone     String?
   dateNaissance DateTime?
   qrCode        String?    @unique
+  fcmToken      String?
   createdAt     DateTime   @default(now())
   tampons       Tampon[]
   cashbacks     Cashback[]

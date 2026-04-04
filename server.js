@@ -20,6 +20,7 @@ const commercantRoutes = require('./routes/commercant')
 const clientRoutes = require('./routes/client')
 const adminRoutes = require('./routes/admin')
 const { verifierToken, verifierRole } = require('./middleware/auth')
+const notificationsRoutes = require('./routes/notifications')
 
 // Route protégée test commerçant
 app.get('/api/commercant/dashboard', verifierToken, verifierRole('commercant'), (req, res) => {
@@ -32,6 +33,7 @@ app.use('/api/commercant', commercantRoutes)
 app.use('/api/client', clientRoutes)
 app.use('/api/stripe', stripeRoutes)
 app.use('/api/admin', adminRoutes)
+app.use('/api/notifications', notificationsRoutes)
 
 // Route de test
 app.get('/', (req, res) => {
