@@ -22,6 +22,7 @@ model Commercant {
   password             String
   telephone            String?
   adresse              String?
+  lienGoogle    String?
   createdAt            DateTime @default(now())
 
   stripeCustomerId     String?
