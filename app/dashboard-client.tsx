@@ -166,11 +166,26 @@ export default function DashboardClient() {
     router.replace('/login');
   };
 
-  const ouvrirAvis = (commercantId: string, commercantNom: string) => {
+  const ouvrirAvis = async (commercantId: string, commercantNom: string) => {
+  const token = await AsyncStorage.getItem('token');
+  try {
+    const res = await axios.get(API + '/api/client/commercant/' + commercantId, {
+      headers: { Authorization: 'Bearer ' + token },
+    });
+    const lienGoogle = res.data.lienGoogle;
+    if (lienGoogle) {
+      Linking.openURL(lienGoogle);
+    } else {
+      setNote(0);
+      setCommentaire('');
+      setAvisModal({ visible: true, commercantId, commercantNom });
+    }
+  } catch {
     setNote(0);
     setCommentaire('');
     setAvisModal({ visible: true, commercantId, commercantNom });
-  };
+  }
+};
 
   const soumettreAvis = async () => {
     if (note === 0) {
