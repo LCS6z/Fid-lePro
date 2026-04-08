@@ -1,51 +1,40 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import axios from 'axios';
+import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   Alert,
   Linking,
   Modal,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
   FadeInDown,
+  interpolateColor,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
+  withTiming,
 } from 'react-native-reanimated';
-
-const API = 'https://fid-lepro-production.up.railway.app';
-
-const VIOLET = '#6637ee';
-const BLANC = '#ffffff';
-const GRIS = '#f5f5f5';
-const GRIS_TEXTE = '#333333';
-const GRIS_CLAIR = '#888888';
-const ROUGE = '#e74c3c';
-const VERT = '#2ecc71';
-const JAUNE = '#f1c40f';
-
-type Client = {
-  nom: string;
-  qrCode: string;
-};
-
-type Tampon = {
-  carteId: string;
-  carteName: string;
-  commercant?: { nom: string; id?: string };
-  nombreTampons: number;
-  maxTampons: number;
-  recompense?: number | null;
-};
+import { Confetti } from '@/components/Confetti';
+import { DashboardClientLoader } from '@/components/ScreenLoader';
+import { Toast, useToast } from '@/components/Toast';
+import { colors, radius, shadow, spacing } from '@/constants/colors';
+import { useAuth } from '@/context/AuthContext';
+import { useTheme } from '@/context/ThemeContext';
+import type { Theme } from '@/constants/theme';
+import { apiClient } from '@/lib/api';
+import { cache } from '@/lib/cache';
+import type { ClientProfil, Tampon } from '@/lib/types';
+import useNotifications from '../hooks/useNotifications';
 
 type AvisModal = {
   visible: boolean;
@@ -53,19 +42,114 @@ type AvisModal = {
   commercantNom: string;
 };
 
+function FiltrePill({
+  label,
+  actif,
+  onPress,
+  theme,
+}: {
+  label: string;
+  actif: boolean;
+  onPress: () => void;
+  theme: Theme;
+}) {
+  const progress = useSharedValue(actif ? 1 : 0);
+
+  useEffect(() => {
+    progress.value = withTiming(actif ? 1 : 0, { duration: 200 });
+  }, [actif]);
+
+  const pillStyle = useAnimatedStyle(() => ({
+    backgroundColor: interpolateColor(
+      progress.value,
+      [0, 1],
+      [theme.surfaceSecondary, colors.primary],
+    ),
+    borderColor: interpolateColor(
+      progress.value,
+      [0, 1],
+      [theme.border, colors.primary],
+    ),
+  }));
+
+  const textStyle = useAnimatedStyle(() => ({
+    color: interpolateColor(
+      progress.value,
+      [0, 1],
+      [theme.textMuted, '#ffffff'],
+    ),
+  }));
+
+  return (
+    <TouchableOpacity onPress={onPress} activeOpacity={0.8}>
+      <Animated.View style={[{
+        paddingHorizontal: spacing.md,
+        paddingVertical: 6,
+        borderRadius: 999,
+        borderWidth: 1,
+      }, pillStyle]}>
+        <Animated.Text style={[{ fontSize: 12, fontWeight: '600' }, textStyle]}>
+          {label}
+        </Animated.Text>
+      </Animated.View>
+    </TouchableOpacity>
+  );
+}
+
+function initiales(nom: string): string {
+  return nom
+    .split(' ')
+    .slice(0, 2)
+    .map(p => p.charAt(0).toUpperCase())
+    .join('');
+}
+
+function DotTampon({ rempli, index, estComplete }: { rempli: boolean; index: number; estComplete: boolean }) {
+  const { theme } = useTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const scale = useSharedValue(rempli ? 1 : 0.6);
+  const opacity = useSharedValue(rempli ? 1 : 0.4);
+
+  useEffect(() => {
+    if (rempli) {
+      scale.value = withSpring(1, { damping: 10, stiffness: 120 });
+      opacity.value = withSpring(1);
+    } else {
+      scale.value = withSpring(0.6, { damping: 12, stiffness: 100 });
+      opacity.value = withSpring(0.4);
+    }
+  }, [rempli]);
+
+  const animStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+    opacity: opacity.value,
+  }));
+
+  return (
+    <Animated.View
+      entering={FadeInDown.duration(300).delay(index * 40).springify()}
+      style={animStyle}
+    >
+      <View style={[styles.dot, rempli && styles.dotRempli, estComplete && rempli && styles.dotComplete]}>
+        {rempli && <Text style={styles.dotCheck}>✓</Text>}
+      </View>
+    </Animated.View>
+  );
+}
+
+// Composant séparé pour éviter la violation Rules of Hooks (hooks dans if)
 function BarreProgression({ nombreTampons, maxTampons }: { nombreTampons: number; maxTampons: number }) {
+  const { theme } = useTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const estComplete = nombreTampons >= maxTampons;
   const progression = Math.min(nombreTampons / maxTampons, 1);
   const largeur = useSharedValue(0);
 
   useEffect(() => {
     largeur.value = withSpring(progression, { damping: 15, stiffness: 80 });
-  }, [nombreTampons, maxTampons]);
+  }, [progression]);
 
-  const barreStyle = useAnimatedStyle(() => ({
-    width: `${largeur.value * 100}%`,
-  }));
-
-  const estComplete = nombreTampons >= maxTampons;
+  const barreStyle = useAnimatedStyle(() => ({ width: `${largeur.value * 100}%` as any }));
 
   return (
     <View style={styles.barreContainer}>
@@ -73,18 +157,38 @@ function BarreProgression({ nombreTampons, maxTampons }: { nombreTampons: number
         <Animated.View style={[styles.barreRemplissage, barreStyle, estComplete && styles.barreComplete]} />
       </View>
       <Text style={styles.barreTexte}>
-        {nombreTampons}/{maxTampons} tampons
-        {estComplete ? ' 🎉 Récompense disponible !' : ''}
+        {nombreTampons}/{maxTampons} tampons{estComplete ? ' 🎉' : ''}
       </Text>
     </View>
   );
 }
 
+function TamponsVisuels({ nombreTampons, maxTampons }: { nombreTampons: number; maxTampons: number }) {
+  const { theme } = useTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const estComplete = nombreTampons >= maxTampons;
+  const dots = Array.from({ length: maxTampons }, (_, i) => i < nombreTampons);
+
+  if (maxTampons > 12) {
+    return <BarreProgression nombreTampons={nombreTampons} maxTampons={maxTampons} />;
+  }
+
+  return (
+    <View style={styles.dotsContainer}>
+      {dots.map((rempli, i) => (
+        <DotTampon key={i} rempli={rempli} index={i} estComplete={estComplete} />
+      ))}
+    </View>
+  );
+}
+
 function EtoileNote({ note, onSelect }: { note: number; onSelect: (n: number) => void }) {
+  const { theme } = useTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   return (
     <View style={styles.etoilesContainer}>
       {[1, 2, 3, 4, 5].map(n => (
-        <TouchableOpacity key={n} onPress={() => onSelect(n)}>
+        <TouchableOpacity key={n} onPress={() => onSelect(n)} hitSlop={8}>
           <Text style={[styles.etoile, n <= note && styles.etoileActive]}>★</Text>
         </TouchableOpacity>
       ))}
@@ -92,172 +196,459 @@ function EtoileNote({ note, onSelect }: { note: number; onSelect: (n: number) =>
   );
 }
 
-function CarteTampon({ tampon, index, onLaisserAvis }: {
+function ModalHistorique({ carteId, commercantNom, visible, onClose }: {
+  carteId: string;
+  commercantNom: string;
+  visible: boolean;
+  onClose: () => void;
+}) {
+  const { theme } = useTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const insets = useSafeAreaInsets();
+  const [historique, setHistorique] = useState<string[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!visible) return;
+    setLoading(true);
+    apiClient.get(`/api/client/tampons/${carteId}/historique`)
+      .then(res => setHistorique(Array.isArray(res.data) ? res.data : []))
+      .catch(() => setHistorique([]))
+      .finally(() => setLoading(false));
+  }, [visible, carteId]);
+
+  const formatDate = (iso: string) => {
+    const d = new Date(iso);
+    return d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" statusBarTranslucent>
+      <View style={styles.modalOverlay}>
+        <Animated.View
+          entering={FadeInDown.duration(400).springify()}
+          style={[styles.modalCard, { paddingBottom: insets.bottom + spacing.lg }]}
+        >
+          <View style={styles.modalHandle} />
+          <Text style={styles.modalSurtitle}>Historique des visites</Text>
+          <Text style={styles.modalTitle}>{commercantNom}</Text>
+
+          {loading ? (
+            <Text style={styles.historiqueEmpty}>Chargement...</Text>
+          ) : historique.length === 0 ? (
+            <Text style={styles.historiqueEmpty}>Aucun historique disponible</Text>
+          ) : (
+            <ScrollView style={{ maxHeight: 260 }} showsVerticalScrollIndicator={false}>
+              {historique.map((date, i) => (
+                <View key={i} style={styles.historiqueRow}>
+                  <View style={styles.historiqueDot} />
+                  <Text style={styles.historiqueDate}>{formatDate(date)}</Text>
+                  <Text style={styles.historiqueTampon}>+1 tampon</Text>
+                </View>
+              ))}
+            </ScrollView>
+          )}
+
+          <TouchableOpacity style={styles.historiqueCloseBtn} onPress={onClose}>
+            <Text style={styles.historiqueCloseBtnText}>Fermer</Text>
+          </TouchableOpacity>
+        </Animated.View>
+      </View>
+    </Modal>
+  );
+}
+
+function CarteTampon({ tampon, index, onLaisserAvis, onShowHistorique }: {
   tampon: Tampon;
   index: number;
   onLaisserAvis: (id: string, nom: string) => void;
+  onShowHistorique: (carteId: string, commercantNom: string) => void;
 }) {
+  const { theme } = useTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   const estComplete = tampon.nombreTampons >= tampon.maxTampons;
+  const [showConfetti, setShowConfetti] = useState(false);
+  const prevComplete = useRef(false);
+
+  useEffect(() => {
+    if (estComplete && !prevComplete.current) {
+      setShowConfetti(true);
+      const t = setTimeout(() => setShowConfetti(false), 900);
+      return () => clearTimeout(t);
+    }
+    prevComplete.current = estComplete;
+  }, [estComplete]);
 
   return (
     <Animated.View
       entering={FadeInDown.duration(500).delay(index * 100).springify()}
       style={[styles.card, estComplete && styles.cardComplete]}
     >
-      <View style={styles.cardHeader}>
-        <Text style={styles.cardTitle}>{tampon.commercant?.nom ?? 'Commerce'}</Text>
-        {estComplete && <Text style={styles.badge}>🎁 Récompense</Text>}
-      </View>
-      <Text style={styles.cardSubtitle}>{tampon.carteName}</Text>
-      <BarreProgression nombreTampons={tampon.nombreTampons} maxTampons={tampon.maxTampons} />
-      {tampon.recompense && (
-        <Text style={styles.recompenseTexte}>Récompense : {tampon.recompense}€</Text>
-      )}
-      {tampon.commercant?.id && (
-        <TouchableOpacity
-          style={styles.avisButton}
-          onPress={() => onLaisserAvis(tampon.commercant!.id!, tampon.commercant!.nom!)}
-        >
-          <Text style={styles.avisButtonText}>⭐ Laisser un avis</Text>
+      <Confetti visible={showConfetti} />
+      <TouchableOpacity
+        activeOpacity={0.8}
+        onPress={() => onShowHistorique(tampon.carteId, tampon.commercant?.nom ?? 'Commerce')}
+      >
+          <View style={styles.cardHeaderRow}>
+            <View style={styles.cardCommerceIcon}>
+              <Text style={styles.cardCommerceInitiale}>
+                {(tampon.commercant?.nom ?? 'C').charAt(0).toUpperCase()}
+              </Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.cardTitle}>{tampon.commercant?.nom ?? 'Commerce'}</Text>
+              <Text style={styles.cardSubtitle}>{tampon.carteName}</Text>
+            </View>
+            {estComplete ? (
+              <View style={styles.badgeComplete}>
+                <Text style={styles.badgeCompleteText}>🎁 Dispo</Text>
+              </View>
+            ) : (
+              <Text style={styles.cardChevron}>›</Text>
+            )}
+          </View>
         </TouchableOpacity>
-      )}
-    </Animated.View>
+
+        <TamponsVisuels nombreTampons={tampon.nombreTampons} maxTampons={tampon.maxTampons} />
+
+        <View style={styles.cardFooter}>
+          <Text style={styles.cardProgression}>
+            {tampon.nombreTampons}/{tampon.maxTampons} tampons
+            {estComplete ? ' — Récompense disponible !' : ''}
+          </Text>
+          {tampon.recompense != null && (
+            <Text style={styles.recompenseTexte}>🎁 {tampon.recompense}€ offerts</Text>
+          )}
+        </View>
+
+        {tampon.commercant?.id && (
+          <TouchableOpacity
+            style={styles.avisButton}
+            onPress={() => onLaisserAvis(tampon.commercant!.id!, tampon.commercant!.nom!)}
+          >
+            <Text style={styles.avisButtonText}>⭐ Laisser un avis</Text>
+          </TouchableOpacity>
+        )}
+      </Animated.View>
   );
 }
 
 export default function DashboardClient() {
-  const [client, setClient] = useState<Client | null>(null);
+  useNotifications();
+
+  const { theme } = useTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const { token, logout, isLoading: authLoading } = useAuth();
+  const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const qrSize = Math.min(width * 0.5, 200);
+
+  const [client, setClient] = useState<ClientProfil | null>(null);
   const [tampons, setTampons] = useState<Tampon[]>([]);
   const [loading, setLoading] = useState(true);
-  const [avisModal, setAvisModal] = useState<AvisModal>({
-    visible: false,
-    commercantId: '',
-    commercantNom: '',
-  });
+  const [refreshing, setRefreshing] = useState(false);
+  const [showProfil, setShowProfil] = useState(false);
+  const [filtre, setFiltre] = useState<'tout' | 'actif' | 'complet'>('tout');
+  const [avisModal, setAvisModal] = useState<AvisModal>({ visible: false, commercantId: '', commercantNom: '' });
+  const [historiqueSelected, setHistoriqueSelected] = useState<{ carteId: string; commercantNom: string } | null>(null);
+  const { toast, showToast, hideToast } = useToast();
   const [note, setNote] = useState(0);
   const [commentaire, setCommentaire] = useState('');
   const [envoyerAvis, setEnvoyerAvis] = useState(false);
 
-  useEffect(() => {
-    const load = async () => {
-      const token = await AsyncStorage.getItem('token');
-      if (!token) {
-        router.replace('/login');
-        return;
+  const chargerDonnees = async (silent = false) => {
+    if (!silent) setLoading(true);
+    try {
+      const [profilRes, tamponsRes] = await Promise.all([
+        apiClient.get('/api/client/profil'),
+        apiClient.get('/api/client/tampons'),
+      ]);
+      setClient(profilRes.data);
+      setTampons(tamponsRes.data);
+      // Mise en cache pour mode offline
+      await Promise.all([
+        cache.set('client_profil', profilRes.data),
+        cache.set('client_tampons', tamponsRes.data),
+      ]);
+    } catch {
+      // Tentative depuis le cache si pas de réseau
+      const [cachedProfil, cachedTampons] = await Promise.all([
+        cache.getStale<ClientProfil>('client_profil'),
+        cache.getStale<Tampon[]>('client_tampons'),
+      ]);
+      if (cachedProfil || cachedTampons) {
+        if (cachedProfil) setClient(cachedProfil);
+        if (cachedTampons) setTampons(cachedTampons);
+        showToast('Données hors ligne — certaines informations peuvent être obsolètes', 'warning');
+      } else {
+        showToast('Impossible de charger vos données. Vérifiez votre connexion.', 'error');
       }
-      try {
-        const res = await axios.get(API + '/api/client/profil', {
-          headers: { Authorization: 'Bearer ' + token },
-        });
-        setClient(res.data);
-        const res2 = await axios.get(API + '/api/client/tampons', {
-          headers: { Authorization: 'Bearer ' + token },
-        });
-        setTampons(res2.data);
-      } catch (e) {
-        console.log(e);
-      }
-      setLoading(false);
-    };
-    load();
-  }, []);
+    }
+    setLoading(false);
+    setRefreshing(false);
+  };
 
-  const deconnexion = async () => {
-    await AsyncStorage.clear();
-    router.replace('/login');
+  useEffect(() => {
+    if (authLoading) return;
+    if (!token) { router.replace('/login'); return; }
+    chargerDonnees();
+  }, [token, authLoading]);
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    chargerDonnees(true);
   };
 
   const ouvrirAvis = async (commercantId: string, commercantNom: string) => {
-    const token = await AsyncStorage.getItem('token');
     try {
-      const res = await axios.get(API + '/api/client/commercant/' + commercantId, {
-        headers: { Authorization: 'Bearer ' + token },
-      });
+      const res = await apiClient.get(`/api/client/commercant/${commercantId}`);
       const lienGoogle = res.data?.lienGoogle;
       if (lienGoogle && lienGoogle.startsWith('http')) {
         await Linking.openURL(lienGoogle);
-      } else {
-        setNote(0);
-        setCommentaire('');
-        setAvisModal({ visible: true, commercantId, commercantNom });
+        return;
       }
-    } catch (e) {
-      console.log('Erreur avis:', e);
-      setNote(0);
-      setCommentaire('');
-      setAvisModal({ visible: true, commercantId, commercantNom });
+    } catch {
+      // Pas de lien Google → modal interne
     }
+    setNote(0);
+    setCommentaire('');
+    setAvisModal({ visible: true, commercantId, commercantNom });
   };
 
   const soumettreAvis = async () => {
     if (note === 0) {
-      Alert.alert('Erreur', 'Veuillez sélectionner une note');
+      Alert.alert('Note manquante', 'Sélectionnez une note avant de publier.');
       return;
     }
     setEnvoyerAvis(true);
-    const token = await AsyncStorage.getItem('token');
     try {
-      await axios.post(
-        API + '/api/client/avis',
-        { commercantId: avisModal.commercantId, note, commentaire },
-        { headers: { Authorization: 'Bearer ' + token } }
-      );
+      await apiClient.post('/api/client/avis', {
+        commercantId: avisModal.commercantId,
+        note,
+        commentaire,
+      });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert('Merci !', 'Votre avis a été publié avec succès 🎉');
       setAvisModal({ visible: false, commercantId: '', commercantNom: '' });
     } catch (err: any) {
-      const msg = err?.response?.data?.message || 'Erreur lors de l\'envoi';
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      const msg = err?.response?.data?.message || "Impossible d'envoyer votre avis. Réessayez.";
       Alert.alert('Erreur', msg);
     }
     setEnvoyerAvis(false);
   };
 
-  if (loading) {
-    return <ActivityIndicator style={{ flex: 1 }} size="large" color={VIOLET} />;
+  const nbTamponsTotal = tampons.reduce((s, t) => s + t.nombreTampons, 0);
+  const nbCartesCompletes = tampons.filter(t => t.nombreTampons >= t.maxTampons).length;
+
+  const tamponsFiltres = useMemo(() => {
+    if (filtre === 'complet') return tampons.filter(t => t.nombreTampons >= t.maxTampons);
+    if (filtre === 'actif') return tampons.filter(t => t.nombreTampons < t.maxTampons);
+    return tampons;
+  }, [tampons, filtre]);
+
+  if (authLoading || loading) {
+    return (
+      <View style={{ flex: 1, paddingTop: insets.top }}>
+        <DashboardClientLoader />
+      </View>
+    );
   }
 
+  const FILTRES: { key: typeof filtre; label: string }[] = [
+    { key: 'tout', label: 'Tout' },
+    { key: 'actif', label: 'En cours' },
+    { key: 'complet', label: '🎁 Complètes' },
+  ];
+
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <Animated.Text entering={FadeInDown.duration(600).springify()} style={styles.title}>
-        FidèlePro
-      </Animated.Text>
-      <Animated.Text entering={FadeInDown.duration(600).delay(100).springify()} style={styles.subtitle}>
-        Bonjour {client?.nom} ! 👋
-      </Animated.Text>
-
-      <Animated.View entering={FadeInDown.duration(600).delay(200).springify()} style={styles.qrContainer}>
-        <Text style={styles.sectionTitle}>Mon QR Code</Text>
-        {client?.qrCode ? (
-          <QRCode value={client.qrCode} size={200} />
-        ) : (
-          <Text>QR code non disponible</Text>
-        )}
-        <Text style={styles.qrLabel}>Présente ce code au commerçant</Text>
-      </Animated.View>
-
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Ma fidélité</Text>
-        {tampons.length === 0 ? (
-          <Animated.View entering={FadeInDown.duration(600).delay(300).springify()} style={styles.emptyContainer}>
-            <Text style={styles.emptyIcon}>🎯</Text>
-            <Text style={styles.empty}>Aucun tampon pour le moment</Text>
-            <Text style={styles.emptySubtitle}>Scanne ton QR code chez un commerçant pour commencer !</Text>
+    <>
+      <ScrollView
+        style={styles.root}
+        contentContainerStyle={{ paddingBottom: insets.bottom + spacing.xxl }}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.white}
+            colors={[colors.primary]}
+          />
+        }
+      >
+        {/* Header coloré */}
+        <View style={[styles.header, { paddingTop: insets.top + spacing.lg }]}>
+          <Animated.View entering={FadeInDown.duration(600).springify()} style={styles.headerTop}>
+            <View>
+              <Text style={styles.headerApp}>FidèlePro</Text>
+              <Text style={styles.headerBonjour}>Bonjour, {client?.nom?.split(' ')[0]} 👋</Text>
+            </View>
+            <TouchableOpacity
+              style={styles.avatarContainer}
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowProfil(true); }}
+              accessibilityLabel="Profil"
+              accessibilityRole="button"
+            >
+              <Text style={styles.avatarText}>{client?.nom ? initiales(client.nom) : '?'}</Text>
+            </TouchableOpacity>
           </Animated.View>
-        ) : (
-          tampons.map((t, i) => (
-            <CarteTampon key={t.carteId} tampon={t} index={i} onLaisserAvis={ouvrirAvis} />
-          ))
-        )}
-      </View>
 
-      <TouchableOpacity style={styles.button} onPress={deconnexion}>
-        <Text style={styles.buttonText}>Se déconnecter</Text>
-      </TouchableOpacity>
+          {/* Stats rapides */}
+          <Animated.View entering={FadeInDown.duration(600).delay(100).springify()} style={styles.statsRow}>
+            <View style={styles.statPill}>
+              <Text style={styles.statPillValue}>{tampons.length}</Text>
+              <Text style={styles.statPillLabel}>cartes</Text>
+            </View>
+            <View style={styles.statPillDivider} />
+            <View style={styles.statPill}>
+              <Text style={styles.statPillValue}>{nbTamponsTotal}</Text>
+              <Text style={styles.statPillLabel}>tampons</Text>
+            </View>
+            <View style={styles.statPillDivider} />
+            <View style={styles.statPill}>
+              <Text style={styles.statPillValue}>{nbCartesCompletes}</Text>
+              <Text style={styles.statPillLabel}>récompenses</Text>
+            </View>
+          </Animated.View>
+        </View>
 
-      <Modal visible={avisModal.visible} transparent animationType="slide">
+        {/* QR Code + cartes */}
+        <View style={styles.body}>
+          <Animated.View entering={FadeInDown.duration(600).delay(200).springify()} style={styles.qrCard}>
+            <View style={styles.qrCardLeft}>
+              <Text style={styles.qrCardTitle}>Mon QR Code</Text>
+              <Text style={styles.qrCardSubtitle}>
+                {"Présentez-le\nchez un commerçant"}
+              </Text>
+              <View style={styles.qrCardBadge}>
+                <Text style={styles.qrCardBadgeText}>✓ Actif</Text>
+              </View>
+            </View>
+            <View style={styles.qrCodeWrapper}>
+              {client?.qrCode ? (
+                <QRCode value={client.qrCode} size={qrSize} />
+              ) : (
+                <View style={[styles.qrCodeWrapper, { backgroundColor: theme.background }]}>
+                  <Text style={styles.qrPlaceholderText}>Indisponible</Text>
+                </View>
+              )}
+            </View>
+          </Animated.View>
+
+          {/* Cartes fidélité */}
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Ma fidélité</Text>
+            {tampons.length > 0 && (
+              <View style={styles.filtreRow}>
+                {FILTRES.map(f => (
+                  <FiltrePill
+                    key={f.key}
+                    label={f.label}
+                    actif={filtre === f.key}
+                    theme={theme}
+                    onPress={() => { Haptics.selectionAsync(); setFiltre(f.key); }}
+                  />
+                ))}
+              </View>
+            )}
+          </View>
+
+          {tampons.length === 0 ? (
+            <Animated.View entering={FadeInDown.duration(600).delay(300).springify()} style={styles.emptyContainer}>
+              <Text style={styles.emptyIcon}>🎯</Text>
+              <Text style={styles.emptyTitle}>Aucun tampon pour le moment</Text>
+              <Text style={styles.emptySubtitle}>
+                {"Scanne ton QR code chez un commerçant pour commencer !"}
+              </Text>
+            </Animated.View>
+          ) : tamponsFiltres.length === 0 ? (
+            <Animated.View entering={FadeInDown.duration(400).springify()} style={styles.emptyContainer}>
+              <Text style={styles.emptyIcon}>🔍</Text>
+              <Text style={styles.emptyTitle}>Aucune carte dans ce filtre</Text>
+              <Text style={styles.emptySubtitle}>Essayez un autre filtre</Text>
+            </Animated.View>
+          ) : (
+            tamponsFiltres.map((t, i) => (
+              <CarteTampon
+                key={t.carteId}
+                tampon={t}
+                index={i}
+                onLaisserAvis={ouvrirAvis}
+                onShowHistorique={(carteId, nom) => setHistoriqueSelected({ carteId, commercantNom: nom })}
+              />
+            ))
+          )}
+
+          <TouchableOpacity style={styles.logoutButton} onPress={logout}>
+            <Text style={styles.logoutText}>Se déconnecter</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+
+      {/* Modal Historique */}
+      <ModalHistorique
+        carteId={historiqueSelected?.carteId ?? ''}
+        commercantNom={historiqueSelected?.commercantNom ?? ''}
+        visible={historiqueSelected !== null}
+        onClose={() => setHistoriqueSelected(null)}
+      />
+
+      {/* Modal Profil */}
+      <Modal visible={showProfil} transparent animationType="slide" statusBarTranslucent>
         <View style={styles.modalOverlay}>
-          <Animated.View entering={FadeInDown.duration(400).springify()} style={styles.modalCard}>
-            <Text style={styles.modalTitre}>Votre avis sur</Text>
-            <Text style={styles.modalCommerce}>{avisModal.commercantNom}</Text>
+          <Animated.View
+            entering={FadeInDown.duration(400).springify()}
+            style={[styles.modalCard, { paddingBottom: insets.bottom + spacing.lg }]}
+          >
+            <View style={styles.modalHandle} />
+            <View style={{ alignItems: 'center', marginBottom: spacing.xl }}>
+              <View style={[styles.avatarContainer, { width: 64, height: 64, borderRadius: 32, marginBottom: spacing.md }]}>
+                <Text style={[styles.avatarText, { fontSize: 24 }]}>{client?.nom ? initiales(client.nom) : '?'}</Text>
+              </View>
+              <Text style={styles.modalTitle}>{client?.nom ?? ''}</Text>
+              <Text style={styles.modalSurtitle}>{tampons.length} carte{tampons.length !== 1 ? 's' : ''} de fidélité</Text>
+            </View>
+            <View style={[styles.historiqueRow, { justifyContent: 'space-around', borderBottomWidth: 0, paddingVertical: spacing.lg }]}>
+              <View style={{ alignItems: 'center' }}>
+                <Text style={[styles.modalTitle, { fontSize: 28 }]}>{tampons.reduce((s, t) => s + t.nombreTampons, 0)}</Text>
+                <Text style={styles.modalSurtitle}>tampons total</Text>
+              </View>
+              <View style={{ width: 1, backgroundColor: theme.border }} />
+              <View style={{ alignItems: 'center' }}>
+                <Text style={[styles.modalTitle, { fontSize: 28 }]}>{tampons.filter(t => t.nombreTampons >= t.maxTampons).length}</Text>
+                <Text style={styles.modalSurtitle}>récompenses</Text>
+              </View>
+            </View>
+            <TouchableOpacity
+              style={styles.parametresButton}
+              onPress={() => { setShowProfil(false); router.push('/profil'); }}
+              accessibilityLabel="Paramètres du compte"
+              accessibilityRole="button"
+            >
+              <Text style={styles.parametresButtonText}>⚙️ Paramètres</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.logoutButton, { marginTop: spacing.sm }]}
+              onPress={() => { setShowProfil(false); setTimeout(logout, 300); }}
+            >
+              <Text style={styles.logoutText}>Se déconnecter</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.historiqueCloseBtn} onPress={() => setShowProfil(false)}>
+              <Text style={styles.historiqueCloseBtnText}>Fermer</Text>
+            </TouchableOpacity>
+          </Animated.View>
+        </View>
+      </Modal>
+
+      <Modal visible={avisModal.visible} transparent animationType="slide" statusBarTranslucent>
+        <View style={styles.modalOverlay}>
+          <Animated.View
+            entering={FadeInDown.duration(400).springify()}
+            style={[styles.modalCard, { paddingBottom: insets.bottom + spacing.lg }]}
+          >
+            <View style={styles.modalHandle} />
+            <Text style={styles.modalSurtitle}>Votre avis sur</Text>
+            <Text style={styles.modalTitle}>{avisModal.commercantNom}</Text>
 
             <Text style={styles.modalLabel}>Note</Text>
             <EtoileNote note={note} onSelect={setNote} />
@@ -266,268 +657,470 @@ export default function DashboardClient() {
             <TextInput
               style={styles.modalInput}
               placeholder="Partagez votre expérience..."
-              placeholderTextColor={GRIS_CLAIR}
+              placeholderTextColor={colors.textMuted}
               value={commentaire}
               onChangeText={setCommentaire}
               multiline
               numberOfLines={3}
             />
 
-            <View style={styles.modalBoutons}>
+            <View style={styles.modalButtons}>
               <TouchableOpacity
-                style={styles.modalBoutonAnnuler}
+                style={styles.cancelButton}
                 onPress={() => setAvisModal({ visible: false, commercantId: '', commercantNom: '' })}
               >
-                <Text style={styles.modalBoutonAnnulerTexte}>Annuler</Text>
+                <Text style={styles.cancelText}>Annuler</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.modalBoutonEnvoyer, envoyerAvis && { opacity: 0.6 }]}
+                style={[styles.submitButton, envoyerAvis && styles.submitDisabled]}
                 onPress={soumettreAvis}
                 disabled={envoyerAvis}
               >
-                <Text style={styles.modalBoutonEnvoyerTexte}>
-                  {envoyerAvis ? 'Envoi...' : 'Publier'}
-                </Text>
+                <Text style={styles.submitText}>{envoyerAvis ? 'Envoi...' : 'Publier'}</Text>
               </TouchableOpacity>
             </View>
           </Animated.View>
         </View>
       </Modal>
-    </ScrollView>
+
+      <Toast
+        visible={!!toast}
+        message={toast?.message ?? ''}
+        type={toast?.type}
+        onHide={hideToast}
+      />
+    </>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    alignItems: 'center',
-    backgroundColor: GRIS,
-    padding: 24,
-    paddingTop: 60,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: VIOLET,
-    marginBottom: 4,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: '#555555',
-    marginBottom: 24,
-  },
-  qrContainer: {
-    alignItems: 'center',
-    backgroundColor: BLANC,
-    borderRadius: 16,
-    padding: 24,
-    marginBottom: 24,
-    width: '100%',
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 4,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: GRIS_TEXTE,
-    marginBottom: 16,
-  },
-  qrLabel: {
-    marginTop: 12,
-    color: GRIS_CLAIR,
-    fontSize: 13,
-  },
-  section: {
-    width: '100%',
-    marginBottom: 24,
-  },
-  card: {
-    backgroundColor: BLANC,
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 12,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 4,
-  },
-  cardComplete: {
-    borderWidth: 2,
-    borderColor: VERT,
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  cardTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: GRIS_TEXTE,
-  },
-  cardSubtitle: {
-    fontSize: 13,
-    color: GRIS_CLAIR,
-    marginBottom: 12,
-  },
-  badge: {
-    fontSize: 12,
-    color: VERT,
-    fontWeight: 'bold',
-  },
-  barreContainer: {
-    width: '100%',
-  },
-  barreFond: {
-    height: 12,
-    backgroundColor: '#eeeeee',
-    borderRadius: 6,
-    overflow: 'hidden',
-    marginBottom: 6,
-  },
-  barreRemplissage: {
-    height: '100%',
-    backgroundColor: VIOLET,
-    borderRadius: 6,
-  },
-  barreComplete: {
-    backgroundColor: VERT,
-  },
-  barreTexte: {
-    fontSize: 12,
-    color: GRIS_CLAIR,
-  },
-  recompenseTexte: {
-    marginTop: 8,
-    fontSize: 13,
-    color: VERT,
-    fontWeight: '600',
-  },
-  avisButton: {
-    marginTop: 12,
-    backgroundColor: GRIS,
-    borderRadius: 10,
-    padding: 10,
-    alignItems: 'center',
-  },
-  avisButtonText: {
-    color: VIOLET,
-    fontWeight: 'bold',
-    fontSize: 14,
-  },
-  emptyContainer: {
-    alignItems: 'center',
-    backgroundColor: BLANC,
-    borderRadius: 16,
-    padding: 32,
-  },
-  emptyIcon: {
-    fontSize: 48,
-    marginBottom: 12,
-  },
-  empty: {
-    color: GRIS_TEXTE,
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginBottom: 8,
-  },
-  emptySubtitle: {
-    color: GRIS_CLAIR,
-    fontSize: 13,
-    textAlign: 'center',
-  },
-  button: {
-    backgroundColor: ROUGE,
-    borderRadius: 10,
-    padding: 14,
-    alignItems: 'center',
-    width: '100%',
-  },
-  buttonText: {
-    color: BLANC,
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
-  },
-  modalCard: {
-    backgroundColor: BLANC,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 28,
-  },
-  modalTitre: {
-    fontSize: 16,
-    color: GRIS_CLAIR,
-    textAlign: 'center',
-  },
-  modalCommerce: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: GRIS_TEXTE,
-    textAlign: 'center',
-    marginBottom: 24,
-  },
-  modalLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: GRIS_TEXTE,
-    marginBottom: 8,
-  },
-  etoilesContainer: {
-    flexDirection: 'row',
-    marginBottom: 20,
-    gap: 8,
-  },
-  etoile: {
-    fontSize: 36,
-    color: '#dddddd',
-  },
-  etoileActive: {
-    color: JAUNE,
-  },
-  modalInput: {
-    backgroundColor: GRIS,
-    borderRadius: 12,
-    padding: 14,
-    fontSize: 15,
-    color: GRIS_TEXTE,
-    marginBottom: 20,
-    textAlignVertical: 'top',
-  },
-  modalBoutons: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  modalBoutonAnnuler: {
-    flex: 1,
-    padding: 16,
-    borderRadius: 12,
-    backgroundColor: GRIS,
-    alignItems: 'center',
-  },
-  modalBoutonAnnulerTexte: {
-    color: GRIS_TEXTE,
-    fontWeight: 'bold',
-    fontSize: 15,
-  },
-  modalBoutonEnvoyer: {
-    flex: 1,
-    padding: 16,
-    borderRadius: 12,
-    backgroundColor: VIOLET,
-    alignItems: 'center',
-  },
-  modalBoutonEnvoyerTexte: {
-    color: BLANC,
-    fontWeight: 'bold',
-    fontSize: 15,
-  },
-});
+function makeStyles(theme: Theme) {
+  return StyleSheet.create({
+    root: {
+      flex: 1,
+      backgroundColor: theme.background,
+    },
+    // Header
+    header: {
+      backgroundColor: colors.primary,
+      paddingHorizontal: spacing.xxl,
+      paddingBottom: spacing.xxxl,
+      borderBottomLeftRadius: 28,
+      borderBottomRightRadius: 28,
+    },
+    headerTop: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: spacing.xl,
+    },
+    headerApp: {
+      fontSize: 13,
+      color: 'rgba(255,255,255,0.7)',
+      fontWeight: '600',
+      letterSpacing: 1,
+      textTransform: 'uppercase',
+    },
+    headerBonjour: {
+      fontSize: 22,
+      fontWeight: 'bold',
+      color: colors.white,
+      marginTop: 2,
+    },
+    avatarContainer: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      backgroundColor: 'rgba(255,255,255,0.2)',
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 2,
+      borderColor: 'rgba(255,255,255,0.4)',
+    },
+    avatarText: {
+      color: colors.white,
+      fontSize: 16,
+      fontWeight: 'bold',
+    },
+    statsRow: {
+      flexDirection: 'row',
+      backgroundColor: 'rgba(255,255,255,0.15)',
+      borderRadius: radius.xxl,
+      padding: spacing.md,
+      alignItems: 'center',
+    },
+    statPill: {
+      flex: 1,
+      alignItems: 'center',
+    },
+    statPillValue: {
+      color: colors.white,
+      fontSize: 20,
+      fontWeight: 'bold',
+    },
+    statPillLabel: {
+      color: 'rgba(255,255,255,0.7)',
+      fontSize: 11,
+      marginTop: 2,
+    },
+    statPillDivider: {
+      width: 1,
+      height: 28,
+      backgroundColor: 'rgba(255,255,255,0.3)',
+    },
+    // Body
+    body: {
+      padding: spacing.xxl,
+      marginTop: -spacing.md,
+    },
+    // QR Card horizontale
+    qrCard: {
+      backgroundColor: theme.surface,
+      borderRadius: radius.card,
+      padding: spacing.xxl,
+      marginBottom: spacing.xxl,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      ...shadow.cardElevated,
+    },
+    qrCardLeft: {
+      flex: 1,
+      marginRight: spacing.xl,
+    },
+    qrCardTitle: {
+      fontSize: 17,
+      fontWeight: 'bold',
+      color: theme.text,
+      marginBottom: 6,
+    },
+    qrCardSubtitle: {
+      fontSize: 13,
+      color: theme.textMuted,
+      lineHeight: 19,
+      marginBottom: spacing.md,
+    },
+    qrCardBadge: {
+      backgroundColor: '#e8f8f0',
+      borderRadius: radius.sm,
+      paddingHorizontal: spacing.sm,
+      paddingVertical: 4,
+      alignSelf: 'flex-start',
+    },
+    qrCardBadgeText: {
+      color: colors.success,
+      fontSize: 12,
+      fontWeight: 'bold',
+    },
+    qrCodeWrapper: {
+      padding: spacing.sm,
+      backgroundColor: theme.surface,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      borderColor: theme.border,
+    },
+    qrPlaceholderText: {
+      color: theme.textMuted,
+      fontSize: 12,
+    },
+    sectionHeader: {
+      marginBottom: spacing.lg,
+    },
+    sectionTitle: {
+      fontSize: 18,
+      fontWeight: 'bold',
+      color: theme.text,
+      marginBottom: spacing.md,
+    },
+    filtreRow: {
+      flexDirection: 'row',
+      gap: spacing.sm,
+    },
+    // Cartes tampons
+    card: {
+      backgroundColor: theme.surface,
+      borderRadius: radius.xxl,
+      padding: spacing.xl,
+      marginBottom: spacing.md,
+      ...shadow.card,
+    },
+    cardComplete: {
+      borderWidth: 2,
+      borderColor: colors.success,
+    },
+    cardHeaderRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: spacing.lg,
+    },
+    cardCommerceIcon: {
+      width: 42,
+      height: 42,
+      borderRadius: 21,
+      backgroundColor: colors.primary,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginRight: spacing.md,
+      flexShrink: 0,
+    },
+    cardCommerceInitiale: {
+      color: colors.white,
+      fontSize: 18,
+      fontWeight: 'bold',
+    },
+    cardTitle: {
+      fontSize: 15,
+      fontWeight: 'bold',
+      color: theme.text,
+    },
+    cardSubtitle: {
+      fontSize: 12,
+      color: theme.textMuted,
+      marginTop: 2,
+    },
+    badgeComplete: {
+      backgroundColor: '#e8f8f0',
+      borderRadius: radius.sm,
+      paddingHorizontal: spacing.sm,
+      paddingVertical: 4,
+    },
+    badgeCompleteText: {
+      color: colors.success,
+      fontSize: 11,
+      fontWeight: 'bold',
+    },
+    // Tampons visuels (dots)
+    dotsContainer: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: spacing.sm,
+      marginBottom: spacing.md,
+    },
+    dot: {
+      width: 28,
+      height: 28,
+      borderRadius: 14,
+      borderWidth: 2,
+      borderColor: theme.border,
+      backgroundColor: theme.background,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    dotRempli: {
+      backgroundColor: colors.primary,
+      borderColor: colors.primary,
+    },
+    dotComplete: {
+      backgroundColor: colors.success,
+      borderColor: colors.success,
+    },
+    dotCheck: {
+      color: colors.white,
+      fontSize: 13,
+      fontWeight: 'bold',
+    },
+    // Barre progression (fallback)
+    barreContainer: { width: '100%', marginBottom: spacing.md },
+    barreFond: {
+      height: 10,
+      backgroundColor: theme.border,
+      borderRadius: 5,
+      overflow: 'hidden',
+      marginBottom: 6,
+    },
+    barreRemplissage: {
+      height: '100%',
+      backgroundColor: colors.primary,
+      borderRadius: 5,
+    },
+    barreComplete: { backgroundColor: colors.success },
+    barreTexte: { fontSize: 12, color: theme.textMuted },
+    cardFooter: {
+      gap: 4,
+    },
+    cardProgression: {
+      fontSize: 12,
+      color: theme.textMuted,
+    },
+    recompenseTexte: {
+      fontSize: 13,
+      color: colors.success,
+      fontWeight: '600',
+    },
+    avisButton: {
+      marginTop: spacing.md,
+      backgroundColor: theme.surfaceSecondary,
+      borderRadius: radius.md,
+      padding: spacing.sm + 2,
+      alignItems: 'center',
+    },
+    avisButtonText: {
+      color: colors.primary,
+      fontWeight: 'bold',
+      fontSize: 14,
+    },
+    emptyContainer: {
+      alignItems: 'center',
+      backgroundColor: theme.surface,
+      borderRadius: radius.xxl,
+      padding: spacing.huge,
+      marginBottom: spacing.xxl,
+      ...shadow.card,
+    },
+    emptyIcon: { fontSize: 48, marginBottom: spacing.md },
+    emptyTitle: {
+      color: theme.text,
+      fontSize: 16,
+      fontWeight: 'bold',
+      marginBottom: spacing.sm,
+    },
+    emptySubtitle: {
+      color: theme.textMuted,
+      fontSize: 13,
+      textAlign: 'center',
+      lineHeight: 20,
+    },
+    parametresButton: {
+      backgroundColor: theme.surfaceSecondary,
+      borderRadius: radius.md,
+      padding: 14,
+      alignItems: 'center',
+      marginTop: spacing.lg,
+    },
+    parametresButtonText: { color: colors.primary, fontSize: 15, fontWeight: '600' },
+    logoutButton: {
+      backgroundColor: 'transparent',
+      borderWidth: 1.5,
+      borderColor: colors.error,
+      borderRadius: radius.md,
+      padding: 14,
+      alignItems: 'center',
+      marginTop: spacing.md,
+    },
+    logoutText: { color: colors.error, fontSize: 15, fontWeight: '600' },
+    // Modal
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: theme.overlay,
+      justifyContent: 'flex-end',
+    },
+    modalCard: {
+      backgroundColor: theme.surface,
+      borderTopLeftRadius: 28,
+      borderTopRightRadius: 28,
+      padding: spacing.xxxl,
+    },
+    modalHandle: {
+      width: 40,
+      height: 4,
+      backgroundColor: theme.border,
+      borderRadius: 2,
+      alignSelf: 'center',
+      marginBottom: spacing.xl,
+    },
+    modalSurtitle: {
+      fontSize: 14,
+      color: theme.textMuted,
+      textAlign: 'center',
+    },
+    modalTitle: {
+      fontSize: 22,
+      fontWeight: 'bold',
+      color: theme.text,
+      textAlign: 'center',
+      marginBottom: spacing.xxl,
+      marginTop: 4,
+    },
+    modalLabel: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: theme.text,
+      marginBottom: spacing.sm,
+    },
+    etoilesContainer: {
+      flexDirection: 'row',
+      marginBottom: spacing.xl,
+      gap: spacing.sm,
+    },
+    etoile: { fontSize: 38, color: theme.border },
+    etoileActive: { color: colors.warning },
+    modalInput: {
+      backgroundColor: theme.surfaceSecondary,
+      borderRadius: radius.lg,
+      padding: 14,
+      fontSize: 15,
+      color: theme.text,
+      marginBottom: spacing.xl,
+      textAlignVertical: 'top',
+      minHeight: 80,
+    },
+    modalButtons: { flexDirection: 'row', gap: spacing.md },
+    cancelButton: {
+      flex: 1,
+      padding: spacing.lg,
+      borderRadius: radius.lg,
+      backgroundColor: theme.surfaceSecondary,
+      alignItems: 'center',
+    },
+    cancelText: { color: theme.text, fontWeight: 'bold', fontSize: 15 },
+    submitButton: {
+      flex: 1,
+      padding: spacing.lg,
+      borderRadius: radius.lg,
+      backgroundColor: colors.primary,
+      alignItems: 'center',
+    },
+    submitDisabled: { opacity: 0.6 },
+    submitText: { color: colors.white, fontWeight: 'bold', fontSize: 15 },
+    // Chevron carte tampon
+    cardChevron: {
+      fontSize: 22,
+      color: theme.textMuted,
+      fontWeight: '300',
+      paddingLeft: spacing.sm,
+    },
+    // Modal historique
+    historiqueEmpty: {
+      fontSize: 14,
+      color: theme.textMuted,
+      textAlign: 'center',
+      paddingVertical: spacing.xxl,
+    },
+    historiqueRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: spacing.md,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.borderLight,
+      gap: spacing.md,
+    },
+    historiqueDot: {
+      width: 8,
+      height: 8,
+      borderRadius: 4,
+      backgroundColor: colors.primary,
+      flexShrink: 0,
+    },
+    historiqueDate: {
+      flex: 1,
+      fontSize: 13,
+      color: theme.text,
+    },
+    historiqueTampon: {
+      fontSize: 12,
+      color: colors.success,
+      fontWeight: '700',
+    },
+    historiqueCloseBtn: {
+      marginTop: spacing.xl,
+      backgroundColor: theme.surfaceSecondary,
+      borderRadius: radius.xl,
+      padding: 14,
+      alignItems: 'center',
+    },
+    historiqueCloseBtnText: {
+      color: theme.text,
+      fontWeight: 'bold',
+      fontSize: 15,
+    },
+  });
+}

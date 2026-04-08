@@ -1,105 +1,131 @@
-import axios from 'axios';
+import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
-import { useState } from 'react';
-import {
-    Alert,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
-} from 'react-native';
-import Animated, {
-    FadeInDown,
-    FadeInUp,
-    useAnimatedStyle,
-    useSharedValue,
-    withSpring,
-} from 'react-native-reanimated';
-
-const API = 'https://fid-lepro-production.up.railway.app';
-
-const VIOLET = '#6637ee';
-const BLANC = '#ffffff';
-const GRIS = '#f5f5f5';
-const GRIS_TEXTE = '#333333';
-const PLACEHOLDER = '#aaaaaa';
+import { useMemo, useState } from 'react';
+import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import Animated, { FadeInDown, FadeInUp, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
+import { AuthBackground } from '@/components/AuthBackground';
+import { FormInput } from '@/components/FormInput';
+import { colors, radius, shadow, spacing } from '@/constants/colors';
+import { useTheme } from '@/context/ThemeContext';
+import { apiClient } from '@/lib/api';
 
 export default function InscriptionClient() {
+  const { theme } = useTheme();
+  const styles = useMemo(() => StyleSheet.create({
+    scroll: { flexGrow: 1, justifyContent: 'center', padding: spacing.xxl },
+    header: { alignItems: 'center', marginBottom: spacing.xxxl },
+    logoCircle: {
+      width: 72, height: 72, borderRadius: 36,
+      backgroundColor: 'rgba(255,255,255,0.2)',
+      alignItems: 'center', justifyContent: 'center',
+      marginBottom: spacing.lg,
+      borderWidth: 2, borderColor: 'rgba(255,255,255,0.3)',
+    },
+    logoEmoji: { fontSize: 34 },
+    logo: { fontSize: 38, fontWeight: 'bold', color: colors.white, letterSpacing: 0.5 },
+    tagline: { fontSize: 15, color: 'rgba(255,255,255,0.75)', marginTop: 6 },
+    card: { backgroundColor: theme.surface, borderRadius: radius.card, padding: spacing.xxxl, ...shadow.cardElevated },
+    cardTitle: { fontSize: 24, fontWeight: 'bold', color: theme.text, marginBottom: 4 },
+    cardSubtitle: { fontSize: 14, color: colors.success, fontWeight: '600', marginBottom: spacing.xl },
+    perksRow: { flexDirection: 'row', justifyContent: 'space-around', marginBottom: spacing.xl },
+    perk: { alignItems: 'center', gap: spacing.xs },
+    perkIcon: { fontSize: 26 },
+    perkLabel: { fontSize: 11, color: theme.textMuted, fontWeight: '500' },
+    formDivider: { height: 1, backgroundColor: theme.border, marginBottom: spacing.xl },
+    button: { backgroundColor: colors.primary, borderRadius: radius.xl, padding: 18, alignItems: 'center', ...shadow.button(colors.primary) },
+    buttonLoading: { opacity: 0.7 },
+    buttonText: { color: colors.white, fontSize: 17, fontWeight: 'bold', letterSpacing: 0.5 },
+    link: { marginTop: spacing.xl, alignItems: 'center' },
+    linkText: { color: colors.primary, fontSize: 15, fontWeight: '600' },
+  }), [theme]);
   const [nom, setNom] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
   const buttonScale = useSharedValue(1);
-
-  const buttonStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: buttonScale.value }],
-  }));
-
+  const buttonStyle = useAnimatedStyle(() => ({ transform: [{ scale: buttonScale.value }] }));
   const handlePressIn = () => { buttonScale.value = withSpring(0.95); };
   const handlePressOut = () => { buttonScale.value = withSpring(1); };
 
   const handleInscription = async () => {
     if (!nom || !email || !password) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
       Alert.alert('Erreur', 'Tous les champs sont obligatoires');
       return;
     }
     setLoading(true);
     try {
-      await axios.post(API + '/api/auth/inscription/client', { nom, email, password });
-      Alert.alert('Compte créé !', 'Bienvenue sur FidèlePro !', [
-        { text: 'Se connecter', onPress: () => router.replace('/login') }
-      ]);
-    } catch (err) {
-      Alert.alert('Erreur', 'Email déjà utilisé ou problème serveur');
+      await apiClient.post('/api/auth/inscription/client', { nom, email, password });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert(
+        'Compte créé !',
+        'Bienvenue sur FidèlePro !',
+        [{ text: 'Se connecter', onPress: () => router.replace('/login') }]
+      );
+    } catch (err: any) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      const message = err?.response?.data?.message || 'Email déjà utilisé ou problème serveur';
+      Alert.alert('Erreur', message);
     }
     setLoading(false);
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.wrapper}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      <View style={styles.circle1} />
-      <View style={styles.circle2} />
-
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+    <AuthBackground>
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
         <Animated.View entering={FadeInUp.duration(800).springify()} style={styles.header}>
+          <View style={styles.logoCircle}>
+            <Text style={styles.logoEmoji}>👤</Text>
+          </View>
           <Text style={styles.logo}>FidèlePro</Text>
-          <Text style={styles.tagline}>Créer mon compte client</Text>
+          <Text style={styles.tagline}>Rejoignez la communauté</Text>
         </Animated.View>
 
         <Animated.View entering={FadeInDown.duration(800).delay(200).springify()} style={styles.card}>
-          <Text style={styles.cardTitle}>Inscription</Text>
+          <Text style={styles.cardTitle}>Créer un compte</Text>
+          <Text style={styles.cardSubtitle}>Client — Accès gratuit</Text>
 
-          <TextInput
-            style={styles.input}
+          {/* Avantages */}
+          <View style={styles.perksRow}>
+            <View style={styles.perk}>
+              <Text style={styles.perkIcon}>🎁</Text>
+              <Text style={styles.perkLabel}>Récompenses</Text>
+            </View>
+            <View style={styles.perk}>
+              <Text style={styles.perkIcon}>📱</Text>
+              <Text style={styles.perkLabel}>QR Code</Text>
+            </View>
+            <View style={styles.perk}>
+              <Text style={styles.perkIcon}>⭐</Text>
+              <Text style={styles.perkLabel}>Avis</Text>
+            </View>
+          </View>
+
+          <View style={styles.formDivider} />
+
+          <FormInput
+            icon="👤"
             placeholder="Prénom et nom"
-            placeholderTextColor={PLACEHOLDER}
             value={nom}
             onChangeText={setNom}
             autoCapitalize="words"
           />
-
-          <TextInput
-            style={styles.input}
+          <FormInput
+            icon="✉️"
             placeholder="Adresse email"
-            placeholderTextColor={PLACEHOLDER}
             value={email}
             onChangeText={setEmail}
             keyboardType="email-address"
             autoCapitalize="none"
           />
-
-          <TextInput
-            style={styles.input}
+          <FormInput
+            icon="🔒"
             placeholder="Mot de passe"
-            placeholderTextColor={PLACEHOLDER}
             value={password}
             onChangeText={setPassword}
             secureTextEntry
@@ -107,123 +133,25 @@ export default function InscriptionClient() {
 
           <Animated.View style={buttonStyle}>
             <TouchableOpacity
-              style={styles.button}
+              style={[styles.button, loading && styles.buttonLoading]}
               onPress={handleInscription}
               onPressIn={handlePressIn}
               onPressOut={handlePressOut}
               activeOpacity={1}
+              disabled={loading}
             >
               <Text style={styles.buttonText}>
-                {loading ? 'Création...' : 'Créer mon compte'}
+                {loading ? '⏳ Création...' : 'Créer mon compte →'}
               </Text>
             </TouchableOpacity>
           </Animated.View>
 
-          <TouchableOpacity onPress={() => router.replace('/login')} style={styles.loginLink}>
-            <Text style={styles.loginText}>Déjà un compte ? Se connecter</Text>
+          <TouchableOpacity onPress={() => router.replace('/login')} style={styles.link}>
+            <Text style={styles.linkText}>Déjà un compte ? Se connecter</Text>
           </TouchableOpacity>
         </Animated.View>
       </ScrollView>
-    </KeyboardAvoidingView>
+    </AuthBackground>
   );
 }
 
-const styles = StyleSheet.create({
-  wrapper: {
-    flex: 1,
-    backgroundColor: VIOLET,
-  },
-  scroll: {
-    padding: 24,
-    paddingTop: 60,
-  },
-  circle1: {
-    position: 'absolute',
-    width: 300,
-    height: 300,
-    borderRadius: 150,
-    backgroundColor: '#7c4dff',
-    top: -80,
-    right: -80,
-    opacity: 0.5,
-  },
-  circle2: {
-    position: 'absolute',
-    width: 200,
-    height: 200,
-    borderRadius: 100,
-    backgroundColor: '#5e35b1',
-    bottom: 50,
-    left: -60,
-    opacity: 0.4,
-  },
-  header: {
-    alignItems: 'center',
-    marginBottom: 32,
-  },
-  logo: {
-    fontSize: 42,
-    fontWeight: 'bold',
-    color: BLANC,
-    letterSpacing: 1,
-  },
-  tagline: {
-    fontSize: 15,
-    color: BLANC,
-    marginTop: 6,
-    opacity: 0.8,
-  },
-  card: {
-    backgroundColor: BLANC,
-    borderRadius: 24,
-    padding: 28,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.2,
-    shadowRadius: 20,
-    elevation: 10,
-  },
-  cardTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: GRIS_TEXTE,
-    marginBottom: 24,
-    textAlign: 'center',
-  },
-  input: {
-    backgroundColor: GRIS,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-    fontSize: 16,
-    color: GRIS_TEXTE,
-    borderWidth: 2,
-    borderColor: 'transparent',
-  },
-  button: {
-    backgroundColor: VIOLET,
-    borderRadius: 14,
-    padding: 18,
-    alignItems: 'center',
-    shadowColor: VIOLET,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.4,
-    shadowRadius: 10,
-    elevation: 8,
-  },
-  buttonText: {
-    color: BLANC,
-    fontSize: 17,
-    fontWeight: 'bold',
-    letterSpacing: 0.5,
-  },
-  loginLink: {
-    marginTop: 20,
-    alignItems: 'center',
-  },
-  loginText: {
-    color: VIOLET,
-    fontSize: 15,
-    fontWeight: '600',
-  },
-});

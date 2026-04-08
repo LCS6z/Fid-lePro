@@ -1,8 +1,3 @@
-/**
- * Below are the colors that are used in the app. The colors are defined in the light and dark mode.
- * There are many other ways to style your app. For example, [Nativewind](https://www.nativewind.dev/), [Tamagui](https://tamagui.dev/), [unistyles](https://reactnativeunistyles.vercel.app), etc.
- */
-
 import { Platform } from 'react-native';
 
 const tintColorLight = '#0a7ea4';
@@ -29,13 +24,9 @@ export const Colors = {
 
 export const Fonts = Platform.select({
   ios: {
-    /** iOS `UIFontDescriptorSystemDesignDefault` */
     sans: 'system-ui',
-    /** iOS `UIFontDescriptorSystemDesignSerif` */
     serif: 'ui-serif',
-    /** iOS `UIFontDescriptorSystemDesignRounded` */
     rounded: 'ui-rounded',
-    /** iOS `UIFontDescriptorSystemDesignMonospaced` */
     mono: 'ui-monospace',
   },
   default: {
@@ -51,3 +42,41 @@ export const Fonts = Platform.select({
     mono: "SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
   },
 });
+
+export const lightTheme = {
+  background: '#f5f5f5',
+  surface: '#ffffff',
+  surfaceSecondary: '#f0f0f0',
+  text: '#333333',
+  textMuted: '#888888',
+  textSubtle: '#555555',
+  border: '#eeeeee',
+  borderLight: '#f0f0f0',
+  overlay: 'rgba(0,0,0,0.5)',
+  inactiveBorder: '#ffcccc',
+  inactiveBackground: '#fff9f9',
+  inactiveBadgeBackground: '#ffeeee',
+  placeholder: '#aaaaaa',
+  skeletonBase: '#e0e0e0',
+  skeletonHighlight: '#f5f5f5',
+};
+
+export const darkTheme = {
+  background: '#0f0f14',
+  surface: '#1c1c28',
+  surfaceSecondary: '#252535',
+  text: '#f0f0f0',
+  textMuted: '#888899',
+  textSubtle: '#aaaabc',
+  border: '#2a2a3a',
+  borderLight: '#222232',
+  overlay: 'rgba(0,0,0,0.7)',
+  inactiveBorder: '#3a2222',
+  inactiveBackground: '#1e1515',
+  inactiveBadgeBackground: '#2a1a1a',
+  placeholder: '#55556a',
+  skeletonBase: '#2a2a3a',
+  skeletonHighlight: '#333345',
+};
+
+export type Theme = typeof lightTheme;

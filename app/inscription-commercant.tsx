@@ -1,38 +1,79 @@
-import axios from 'axios';
+import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
-import { useState } from 'react';
-import {
-    Alert,
-    KeyboardAvoidingView,
-    Linking,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
-} from 'react-native';
-import Animated, {
-    FadeInDown,
-    FadeInUp,
-    useAnimatedStyle,
-    useSharedValue,
-    withSpring,
-} from 'react-native-reanimated';
-
-const API = 'https://fid-lepro-production.up.railway.app';
-
-const VIOLET = '#6637ee';
-const BLANC = '#ffffff';
-const GRIS = '#f5f5f5';
-const GRIS_TEXTE = '#333333';
-const PLACEHOLDER = '#aaaaaa';
-const VERT = '#2ecc71';
+import { useMemo, useState } from 'react';
+import { Alert, Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import Animated, { FadeInDown, FadeInUp, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
+import { AuthBackground } from '@/components/AuthBackground';
+import { FormInput } from '@/components/FormInput';
+import { colors, radius, shadow, spacing } from '@/constants/colors';
+import { useTheme } from '@/context/ThemeContext';
+import { apiClient } from '@/lib/api';
+import type { InscriptionCommercantResponse } from '@/lib/types';
 
 type Etape = 1 | 2 | 3;
 
 export default function InscriptionCommercant() {
+  const { theme } = useTheme();
+  const styles = useMemo(() => StyleSheet.create({
+    scroll: { flexGrow: 1, padding: spacing.xxl, paddingTop: spacing.xl, paddingBottom: 40 },
+    header: { alignItems: 'center', marginBottom: spacing.xxl },
+    logoCircle: {
+      width: 72, height: 72, borderRadius: 36,
+      backgroundColor: 'rgba(255,255,255,0.2)',
+      alignItems: 'center', justifyContent: 'center',
+      marginBottom: spacing.lg,
+      borderWidth: 2, borderColor: 'rgba(255,255,255,0.3)',
+    },
+    logoEmoji: { fontSize: 34 },
+    logo: { fontSize: 38, fontWeight: 'bold', color: colors.white, letterSpacing: 0.5 },
+    tagline: { fontSize: 15, color: 'rgba(255,255,255,0.75)', marginTop: 6 },
+    stepsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: spacing.xxl },
+    stepItem: { alignItems: 'center', gap: spacing.xs },
+    stepLabel: { fontSize: 10, color: 'rgba(255,255,255,0.5)', fontWeight: '600' },
+    stepLabelActive: { color: colors.white, opacity: 1 },
+    stepDot: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.3)', alignItems: 'center', justifyContent: 'center' },
+    stepDotActive: { backgroundColor: colors.white },
+    stepNum: { fontSize: 16, fontWeight: 'bold', color: 'rgba(255,255,255,0.7)' },
+    stepNumActive: { color: colors.primary },
+    stepLine: { flex: 1, height: 2, backgroundColor: 'rgba(255,255,255,0.3)', marginHorizontal: spacing.sm },
+    stepLineActive: { backgroundColor: colors.white },
+    card: { backgroundColor: theme.surface, borderRadius: radius.card, padding: spacing.xxxl, ...shadow.cardElevated },
+    cardTitle: { fontSize: 22, fontWeight: 'bold', color: theme.text, marginBottom: 4 },
+    cardSubtitle: { fontSize: 13, color: theme.textMuted, marginBottom: spacing.xxl },
+    button: { backgroundColor: colors.primary, borderRadius: radius.xl, padding: 18, alignItems: 'center', ...shadow.button(colors.primary) },
+    buttonDisabled: { backgroundColor: '#cccccc', shadowOpacity: 0, elevation: 0 },
+    buttonText: { color: colors.white, fontSize: 17, fontWeight: 'bold', letterSpacing: 0.5 },
+    buttonRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginTop: spacing.xs },
+    backButton: { padding: 18, borderRadius: radius.xl, backgroundColor: theme.surfaceSecondary },
+    backButtonText: { color: theme.text, fontSize: 15, fontWeight: '600' },
+    recapCommerce: { flexDirection: 'row', alignItems: 'center', backgroundColor: theme.surfaceSecondary, borderRadius: radius.xl, padding: spacing.lg, marginBottom: spacing.lg, gap: spacing.md },
+    recapCommerceIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
+    recapCommerceIconText: { fontSize: 22 },
+    recapCommerceName: { fontSize: 15, fontWeight: 'bold', color: theme.text },
+    recapCommerceType: { fontSize: 12, color: theme.textMuted, marginTop: 2 },
+    offreCard: { borderWidth: 2, borderColor: colors.primary, borderRadius: radius.xxl, padding: spacing.xl, marginBottom: spacing.xl },
+    offreHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.lg },
+    offreTitle: { fontSize: 16, fontWeight: 'bold', color: colors.primary },
+    offreBadge: { backgroundColor: '#e8f0fe', borderRadius: radius.sm, paddingHorizontal: spacing.sm, paddingVertical: 3 },
+    offreBadgeText: { color: colors.primary, fontSize: 11, fontWeight: '600' },
+    offrePrixRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xl, marginBottom: spacing.xl, paddingBottom: spacing.lg, borderBottomWidth: 1, borderBottomColor: theme.border },
+    offrePrix: { alignItems: 'center' },
+    offrePrixMontant: { fontSize: 28, fontWeight: 'bold', color: colors.primary },
+    offrePrixLabel: { fontSize: 12, color: theme.textMuted, marginTop: 2 },
+    offrePrixPlus: { width: 28, height: 28, borderRadius: 14, backgroundColor: theme.surfaceSecondary, alignItems: 'center', justifyContent: 'center' },
+    offrePrixPlusText: { fontSize: 16, fontWeight: 'bold', color: theme.textMuted },
+    offreFeature: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.sm },
+    offreFeatureIcon: { fontSize: 14 },
+    offreFeatureLabel: { fontSize: 13, color: theme.text },
+    cgvRow: { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.xl, gap: spacing.md },
+    checkbox: { width: 24, height: 24, borderRadius: radius.sm, borderWidth: 2, borderColor: theme.border, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+    checkboxActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+    checkmark: { color: colors.white, fontSize: 14, fontWeight: 'bold' },
+    cgvText: { flex: 1, fontSize: 14, color: theme.text },
+    cgvLink: { color: colors.primary, fontWeight: '600', textDecorationLine: 'underline' },
+    link: { marginTop: spacing.xl, alignItems: 'center' },
+    linkText: { color: colors.primary, fontSize: 15, fontWeight: '600' },
+  }), [theme]);
   const [etape, setEtape] = useState<Etape>(1);
   const [nom, setNom] = useState('');
   const [email, setEmail] = useState('');
@@ -44,129 +85,125 @@ export default function InscriptionCommercant() {
   const [loading, setLoading] = useState(false);
 
   const buttonScale = useSharedValue(1);
-  const buttonStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: buttonScale.value }],
-  }));
+  const buttonStyle = useAnimatedStyle(() => ({ transform: [{ scale: buttonScale.value }] }));
   const handlePressIn = () => { buttonScale.value = withSpring(0.95); };
   const handlePressOut = () => { buttonScale.value = withSpring(1); };
 
   const validerEtape1 = () => {
     if (!nom || !email || !password) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
       Alert.alert('Erreur', 'Tous les champs sont obligatoires');
       return;
     }
     if (password.length < 6) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
       Alert.alert('Erreur', 'Le mot de passe doit faire au moins 6 caractères');
       return;
     }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setEtape(2);
   };
 
   const validerEtape2 = () => {
     if (!telephone || !adresse || !typeCommerce) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
       Alert.alert('Erreur', 'Tous les champs sont obligatoires');
       return;
     }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setEtape(3);
   };
 
   const handleInscription = async () => {
     if (!cgvAcceptees) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
       Alert.alert('Erreur', 'Vous devez accepter les CGV pour continuer');
       return;
     }
     setLoading(true);
     try {
-      const res = await axios.post(API + '/api/stripe/inscription-commercant', {
-        nom,
-        email,
-        password,
-        telephone,
-        adresse,
-        typeCommerce,
+      const res = await apiClient.post<InscriptionCommercantResponse>('/api/stripe/inscription-commercant', {
+        nom, email, password, telephone, adresse, typeCommerce,
       });
-
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       const checkoutUrl = res.data.checkoutUrl;
-
       Alert.alert(
         '✅ Compte créé !',
         'Vous allez être redirigé vers le paiement sécurisé (150€ de mise en service).',
-        [
-          {
-            text: 'Procéder au paiement',
-            onPress: () => Linking.openURL(checkoutUrl),
-          },
-        ]
+        [{ text: 'Procéder au paiement', onPress: () => Linking.openURL(checkoutUrl) }]
       );
     } catch (err: any) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       const message = err?.response?.data?.erreur || 'Erreur serveur';
       Alert.alert('Erreur', message);
     }
     setLoading(false);
   };
 
-  const indicateurEtape = (n: number) => (
-    <View style={[styles.etapeIndicateur, etape >= n && styles.etapeActive]}>
-      <Text style={[styles.etapeNumero, etape >= n && styles.etapeNumeroActive]}>
-        {etape > n ? '✓' : n}
+  const STEP_LABELS = ['Compte', 'Commerce', 'Paiement'];
+
+  const StepIndicator = ({ n }: { n: number }) => (
+    <View style={styles.stepItem}>
+      <View style={[styles.stepDot, etape >= n && styles.stepDotActive]}>
+        <Text style={[styles.stepNum, etape >= n && styles.stepNumActive]}>
+          {etape > n ? '✓' : n}
+        </Text>
+      </View>
+      <Text style={[styles.stepLabel, etape >= n && styles.stepLabelActive]}>
+        {STEP_LABELS[n - 1]}
       </Text>
     </View>
   );
 
   return (
-    <KeyboardAvoidingView
-      style={styles.wrapper}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      <View style={styles.circle1} />
-      <View style={styles.circle2} />
-
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+    <AuthBackground>
+      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         <Animated.View entering={FadeInUp.duration(800).springify()} style={styles.header}>
+          <View style={styles.logoCircle}>
+            <Text style={styles.logoEmoji}>🏪</Text>
+          </View>
           <Text style={styles.logo}>FidèlePro</Text>
           <Text style={styles.tagline}>Inscription commerçant</Text>
         </Animated.View>
 
-        <View style={styles.etapesContainer}>
-          {indicateurEtape(1)}
-          <View style={[styles.etapeLigne, etape >= 2 && styles.etapeLigneActive]} />
-          {indicateurEtape(2)}
-          <View style={[styles.etapeLigne, etape >= 3 && styles.etapeLigneActive]} />
-          {indicateurEtape(3)}
+        {/* Indicateur étapes */}
+        <View style={styles.stepsRow}>
+          <StepIndicator n={1} />
+          <View style={[styles.stepLine, etape >= 2 && styles.stepLineActive]} />
+          <StepIndicator n={2} />
+          <View style={[styles.stepLine, etape >= 3 && styles.stepLineActive]} />
+          <StepIndicator n={3} />
         </View>
 
         <Animated.View entering={FadeInDown.duration(800).delay(200).springify()} style={styles.card}>
 
+          {/* ÉTAPE 1 */}
           {etape === 1 && (
             <>
               <Text style={styles.cardTitle}>Informations de connexion</Text>
-
-              <TextInput
-                style={styles.input}
+              <Text style={styles.cardSubtitle}>Vos identifiants pour accéder à l'espace commerçant</Text>
+              <FormInput
+                icon="🏪"
                 placeholder="Nom du commerce"
-                placeholderTextColor={PLACEHOLDER}
                 value={nom}
                 onChangeText={setNom}
                 autoCapitalize="words"
               />
-              <TextInput
-                style={styles.input}
+              <FormInput
+                icon="✉️"
                 placeholder="Adresse email"
-                placeholderTextColor={PLACEHOLDER}
                 value={email}
                 onChangeText={setEmail}
                 keyboardType="email-address"
                 autoCapitalize="none"
               />
-              <TextInput
-                style={styles.input}
+              <FormInput
+                icon="🔒"
                 placeholder="Mot de passe (6 caractères min)"
-                placeholderTextColor={PLACEHOLDER}
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry
               />
-
               <Animated.View style={buttonStyle}>
                 <TouchableOpacity
                   style={styles.button}
@@ -181,38 +218,35 @@ export default function InscriptionCommercant() {
             </>
           )}
 
+          {/* ÉTAPE 2 */}
           {etape === 2 && (
             <>
               <Text style={styles.cardTitle}>Informations du commerce</Text>
-
-              <TextInput
-                style={styles.input}
+              <Text style={styles.cardSubtitle}>Pour que vos clients puissent vous trouver</Text>
+              <FormInput
+                icon="📞"
                 placeholder="Téléphone"
-                placeholderTextColor={PLACEHOLDER}
                 value={telephone}
                 onChangeText={setTelephone}
                 keyboardType="phone-pad"
               />
-              <TextInput
-                style={styles.input}
+              <FormInput
+                icon="📍"
                 placeholder="Adresse du commerce"
-                placeholderTextColor={PLACEHOLDER}
                 value={adresse}
                 onChangeText={setAdresse}
                 autoCapitalize="words"
               />
-              <TextInput
-                style={styles.input}
+              <FormInput
+                icon="🏷️"
                 placeholder="Type de commerce (ex: Restaurant, Café...)"
-                placeholderTextColor={PLACEHOLDER}
                 value={typeCommerce}
                 onChangeText={setTypeCommerce}
                 autoCapitalize="words"
               />
-
-              <View style={styles.boutonRow}>
-                <TouchableOpacity style={styles.boutonRetour} onPress={() => setEtape(1)}>
-                  <Text style={styles.boutonRetourText}>← Retour</Text>
+              <View style={styles.buttonRow}>
+                <TouchableOpacity style={styles.backButton} onPress={() => setEtape(1)}>
+                  <Text style={styles.backButtonText}>← Retour</Text>
                 </TouchableOpacity>
                 <Animated.View style={[buttonStyle, { flex: 1 }]}>
                   <TouchableOpacity
@@ -229,46 +263,84 @@ export default function InscriptionCommercant() {
             </>
           )}
 
+          {/* ÉTAPE 3 */}
           {etape === 3 && (
             <>
-              <Text style={styles.cardTitle}>Récapitulatif & Paiement</Text>
+              <Text style={styles.cardTitle}>{"Récapitulatif & Paiement"}</Text>
+              <Text style={styles.cardSubtitle}>Vérifiez vos informations avant de payer</Text>
 
-              <View style={styles.recap}>
-                <Text style={styles.recapTitre}>📋 Votre offre</Text>
-                <View style={styles.recapLigne}>
-                  <Text style={styles.recapLabel}>Mise en service</Text>
-                  <Text style={styles.recapValeur}>150 €</Text>
+              {/* Récap commerce */}
+              <View style={styles.recapCommerce}>
+                <View style={styles.recapCommerceIcon}>
+                  <Text style={styles.recapCommerceIconText}>🏪</Text>
                 </View>
-                <View style={styles.recapLigne}>
-                  <Text style={styles.recapLabel}>Abonnement mensuel</Text>
-                  <Text style={styles.recapValeur}>49 €/mois</Text>
-                </View>
-                <View style={styles.recapLigne}>
-                  <Text style={styles.recapLabel}>Engagement</Text>
-                  <Text style={[styles.recapValeur, { color: VERT }]}>Aucun</Text>
-                </View>
-                <View style={styles.recapLigne}>
-                  <Text style={styles.recapLabel}>Résiliation</Text>
-                  <Text style={styles.recapValeur}>1 mois de préavis</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.recapCommerceName}>{nom}</Text>
+                  <Text style={styles.recapCommerceType}>{typeCommerce} • {adresse}</Text>
                 </View>
               </View>
 
+              {/* Offre tarifaire */}
+              <View style={styles.offreCard}>
+                <View style={styles.offreHeader}>
+                  <Text style={styles.offreTitle}>Offre FidèlePro</Text>
+                  <View style={styles.offreBadge}>
+                    <Text style={styles.offreBadgeText}>Sans engagement</Text>
+                  </View>
+                </View>
+
+                <View style={styles.offrePrixRow}>
+                  <View style={styles.offrePrix}>
+                    <Text style={styles.offrePrixMontant}>150€</Text>
+                    <Text style={styles.offrePrixLabel}>mise en service</Text>
+                  </View>
+                  <View style={styles.offrePrixPlus}>
+                    <Text style={styles.offrePrixPlusText}>+</Text>
+                  </View>
+                  <View style={styles.offrePrix}>
+                    <Text style={styles.offrePrixMontant}>49€</Text>
+                    <Text style={styles.offrePrixLabel}>par mois</Text>
+                  </View>
+                </View>
+
+                {[
+                  { icon: '✅', label: 'Tableau de bord commerçant' },
+                  { icon: '✅', label: 'Scanner QR client' },
+                  { icon: '✅', label: 'Statistiques clients' },
+                  { icon: '✅', label: 'Résiliation à tout moment' },
+                ].map((item, i) => (
+                  <View key={i} style={styles.offreFeature}>
+                    <Text style={styles.offreFeatureIcon}>{item.icon}</Text>
+                    <Text style={styles.offreFeatureLabel}>{item.label}</Text>
+                  </View>
+                ))}
+              </View>
+
+              {/* CGV */}
               <TouchableOpacity
-                style={styles.cgvContainer}
-                onPress={() => setCgvAcceptees(!cgvAcceptees)}
+                testID="cgv-toggle"
+                style={styles.cgvRow}
+                onPress={() => {
+                  Haptics.selectionAsync();
+                  setCgvAcceptees(!cgvAcceptees);
+                }}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: cgvAcceptees }}
               >
                 <View style={[styles.checkbox, cgvAcceptees && styles.checkboxActive]}>
-                  {cgvAcceptees && <Text style={styles.checkboxCheck}>✓</Text>}
+                  {cgvAcceptees && <Text style={styles.checkmark}>✓</Text>}
                 </View>
-                <Text style={styles.cgvTexte}>
-                  J'accepte les{' '}
-                  <Text style={styles.cgvLien} onPress={() => router.push('/cgv')}>conditions générales de vente</Text>
+                <Text style={styles.cgvText}>
+                  {"J'accepte les "}
+                  <Text style={styles.cgvLink} onPress={() => router.push('/cgv')}>
+                    conditions générales de vente
+                  </Text>
                 </Text>
               </TouchableOpacity>
 
-              <View style={styles.boutonRow}>
-                <TouchableOpacity style={styles.boutonRetour} onPress={() => setEtape(2)}>
-                  <Text style={styles.boutonRetourText}>← Retour</Text>
+              <View style={styles.buttonRow}>
+                <TouchableOpacity style={styles.backButton} onPress={() => setEtape(2)}>
+                  <Text style={styles.backButtonText}>← Retour</Text>
                 </TouchableOpacity>
                 <Animated.View style={[buttonStyle, { flex: 1 }]}>
                   <TouchableOpacity
@@ -277,10 +349,10 @@ export default function InscriptionCommercant() {
                     onPressIn={handlePressIn}
                     onPressOut={handlePressOut}
                     activeOpacity={1}
-                    disabled={!cgvAcceptees}
+                    disabled={!cgvAcceptees || loading}
                   >
                     <Text style={styles.buttonText}>
-                      {loading ? 'Création...' : '💳 Payer 150€'}
+                      {loading ? '⏳ Création...' : '💳 Payer 150€'}
                     </Text>
                   </TouchableOpacity>
                 </Animated.View>
@@ -288,227 +360,12 @@ export default function InscriptionCommercant() {
             </>
           )}
 
-          <TouchableOpacity onPress={() => router.replace('/login')} style={styles.loginLink}>
-            <Text style={styles.loginText}>Déjà un compte ? Se connecter</Text>
+          <TouchableOpacity onPress={() => router.replace('/login')} style={styles.link}>
+            <Text style={styles.linkText}>Déjà un compte ? Se connecter</Text>
           </TouchableOpacity>
         </Animated.View>
       </ScrollView>
-    </KeyboardAvoidingView>
+    </AuthBackground>
   );
 }
 
-const styles = StyleSheet.create({
-  wrapper: {
-    flex: 1,
-    backgroundColor: VIOLET,
-  },
-  scroll: {
-    padding: 24,
-    paddingTop: 60,
-    paddingBottom: 40,
-  },
-  circle1: {
-    position: 'absolute',
-    width: 300,
-    height: 300,
-    borderRadius: 150,
-    backgroundColor: '#7c4dff',
-    top: -80,
-    right: -80,
-    opacity: 0.5,
-  },
-  circle2: {
-    position: 'absolute',
-    width: 200,
-    height: 200,
-    borderRadius: 100,
-    backgroundColor: '#5e35b1',
-    bottom: 50,
-    left: -60,
-    opacity: 0.4,
-  },
-  header: {
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  logo: {
-    fontSize: 42,
-    fontWeight: 'bold',
-    color: BLANC,
-    letterSpacing: 1,
-  },
-  tagline: {
-    fontSize: 15,
-    color: BLANC,
-    marginTop: 6,
-    opacity: 0.8,
-  },
-  etapesContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 24,
-  },
-  etapeIndicateur: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.3)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  etapeActive: {
-    backgroundColor: BLANC,
-  },
-  etapeNumero: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: 'rgba(255,255,255,0.7)',
-  },
-  etapeNumeroActive: {
-    color: VIOLET,
-  },
-  etapeLigne: {
-    flex: 1,
-    height: 2,
-    backgroundColor: 'rgba(255,255,255,0.3)',
-    marginHorizontal: 8,
-  },
-  etapeLigneActive: {
-    backgroundColor: BLANC,
-  },
-  card: {
-    backgroundColor: BLANC,
-    borderRadius: 24,
-    padding: 28,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.2,
-    shadowRadius: 20,
-    elevation: 10,
-  },
-  cardTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: GRIS_TEXTE,
-    marginBottom: 24,
-    textAlign: 'center',
-  },
-  input: {
-    backgroundColor: GRIS,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-    fontSize: 16,
-    color: GRIS_TEXTE,
-    borderWidth: 2,
-    borderColor: 'transparent',
-  },
-  button: {
-    backgroundColor: VIOLET,
-    borderRadius: 14,
-    padding: 18,
-    alignItems: 'center',
-    shadowColor: VIOLET,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.4,
-    shadowRadius: 10,
-    elevation: 8,
-  },
-  buttonDisabled: {
-    backgroundColor: '#cccccc',
-    shadowOpacity: 0,
-    elevation: 0,
-  },
-  buttonText: {
-    color: BLANC,
-    fontSize: 17,
-    fontWeight: 'bold',
-    letterSpacing: 0.5,
-  },
-  boutonRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginTop: 4,
-  },
-  boutonRetour: {
-    padding: 18,
-    borderRadius: 14,
-    backgroundColor: GRIS,
-  },
-  boutonRetourText: {
-    color: GRIS_TEXTE,
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  recap: {
-    backgroundColor: GRIS,
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 20,
-  },
-  recapTitre: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: GRIS_TEXTE,
-    marginBottom: 16,
-  },
-  recapLigne: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 10,
-  },
-  recapLabel: {
-    fontSize: 14,
-    color: '#666666',
-  },
-  recapValeur: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: GRIS_TEXTE,
-  },
-  cgvContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 20,
-    gap: 12,
-  },
-  checkbox: {
-    width: 24,
-    height: 24,
-    borderRadius: 6,
-    borderWidth: 2,
-    borderColor: '#cccccc',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  checkboxActive: {
-    backgroundColor: VIOLET,
-    borderColor: VIOLET,
-  },
-  checkboxCheck: {
-    color: BLANC,
-    fontSize: 14,
-    fontWeight: 'bold',
-  },
-  cgvTexte: {
-    flex: 1,
-    fontSize: 14,
-    color: GRIS_TEXTE,
-  },
-  cgvLien: {
-    color: VIOLET,
-    fontWeight: '600',
-    textDecorationLine: 'underline',
-  },
-  loginLink: {
-    marginTop: 20,
-    alignItems: 'center',
-  },
-  loginText: {
-    color: VIOLET,
-    fontSize: 15,
-    fontWeight: '600',
-  },
-});
