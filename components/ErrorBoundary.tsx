@@ -1,8 +1,8 @@
+import * as Sentry from '@sentry/react-native';
 import { Component, type ErrorInfo, type ReactNode } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View, useColorScheme } from 'react-native';
 import { colors, radius, spacing } from '@/constants/colors';
 import { darkTheme, lightTheme } from '@/constants/theme';
-import { useColorScheme } from 'react-native';
 
 type Props = {
   children: ReactNode;
@@ -26,6 +26,7 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
+    Sentry.captureException(error, { extra: { componentStack: info.componentStack } });
     if (__DEV__) {
       console.error('[ErrorBoundary]', error, info.componentStack);
     }

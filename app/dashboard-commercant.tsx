@@ -25,6 +25,7 @@ import { useTheme } from '@/context/ThemeContext';
 import { apiClient } from '@/lib/api';
 import { cache } from '@/lib/cache';
 import type { ClientCommercant, ScanResult } from '@/lib/types';
+import useNotifications from '@/hooks/useNotifications';
 
 type Stats = {
   totalClients: number;
@@ -42,7 +43,7 @@ function GraphiqueActivite({ clients }: { clients: ClientCommercant[] }) {
 
   useEffect(() => {
     barreScale.value = withSpring(1, { damping: 14, stiffness: 80 });
-  }, [clients.length]);
+  }, [clients.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Compte les clients actifs par jour sur les 7 derniers jours
   const donnees = useMemo(() => {
@@ -181,6 +182,7 @@ export default function DashboardCommercant() {
   const styles = useMemo(() => makeStyles(theme), [theme]);
   const { token, logout, isLoading: authLoading } = useAuth();
   const insets = useSafeAreaInsets();
+  useNotifications();
   useWindowDimensions();
 
   const [clients, setClients] = useState<ClientCommercant[]>([]);
@@ -260,7 +262,7 @@ export default function DashboardCommercant() {
     if (authLoading) return;
     if (!token) { router.replace('/login'); return; }
     chargerDonnees();
-  }, [token, authLoading]);
+  }, [token, authLoading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const onRefresh = () => {
     setRefreshing(true);

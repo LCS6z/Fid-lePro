@@ -8,6 +8,7 @@ import { FormInput } from '@/components/FormInput';
 import { colors, radius, shadow, spacing } from '@/constants/colors';
 import { useTheme } from '@/context/ThemeContext';
 import { apiClient } from '@/lib/api';
+import { getApiMessage } from '@/lib/api-error';
 
 export default function InscriptionClient() {
   const { theme } = useTheme();
@@ -63,9 +64,9 @@ export default function InscriptionClient() {
         'Bienvenue sur FidèlePro !',
         [{ text: 'Se connecter', onPress: () => router.replace('/login') }]
       );
-    } catch (err: any) {
+    } catch (err: unknown) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      const message = err?.response?.data?.message || 'Email déjà utilisé ou problème serveur';
+      const message = getApiMessage(err, 'Email déjà utilisé ou problème serveur');
       Alert.alert('Erreur', message);
     }
     setLoading(false);

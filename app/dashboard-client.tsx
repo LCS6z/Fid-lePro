@@ -32,6 +32,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 import type { Theme } from '@/constants/theme';
 import { apiClient } from '@/lib/api';
+import { getApiMessage } from '@/lib/api-error';
 import { cache } from '@/lib/cache';
 import type { ClientProfil, Tampon } from '@/lib/types';
 import useNotifications from '../hooks/useNotifications';
@@ -57,7 +58,7 @@ function FiltrePill({
 
   useEffect(() => {
     progress.value = withTiming(actif ? 1 : 0, { duration: 200 });
-  }, [actif]);
+  }, [actif]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const pillStyle = useAnimatedStyle(() => ({
     backgroundColor: interpolateColor(
@@ -118,7 +119,7 @@ function DotTampon({ rempli, index, estComplete }: { rempli: boolean; index: num
       scale.value = withSpring(0.6, { damping: 12, stiffness: 100 });
       opacity.value = withSpring(0.4);
     }
-  }, [rempli]);
+  }, [rempli]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const animStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
@@ -147,9 +148,10 @@ function BarreProgression({ nombreTampons, maxTampons }: { nombreTampons: number
 
   useEffect(() => {
     largeur.value = withSpring(progression, { damping: 15, stiffness: 80 });
-  }, [progression]);
+  }, [progression]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const barreStyle = useAnimatedStyle(() => ({ width: `${largeur.value * 100}%` as any }));
+  // `as any` nécessaire : Reanimated accepte les % mais le type RN ne le déclare pas
+  const barreStyle = useAnimatedStyle(() => ({ width: `${largeur.value * 100}%` as any })); // eslint-disable-line @typescript-eslint/no-explicit-any
 
   return (
     <View style={styles.barreContainer}>
@@ -392,7 +394,7 @@ export default function DashboardClient() {
     if (authLoading) return;
     if (!token) { router.replace('/login'); return; }
     chargerDonnees();
-  }, [token, authLoading]);
+  }, [token, authLoading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -430,9 +432,9 @@ export default function DashboardClient() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert('Merci !', 'Votre avis a été publié avec succès 🎉');
       setAvisModal({ visible: false, commercantId: '', commercantNom: '' });
-    } catch (err: any) {
+    } catch (err: unknown) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      const msg = err?.response?.data?.message || "Impossible d'envoyer votre avis. Réessayez.";
+      const msg = getApiMessage(err, "Impossible d'envoyer votre avis. Réessayez.");
       Alert.alert('Erreur', msg);
     }
     setEnvoyerAvis(false);

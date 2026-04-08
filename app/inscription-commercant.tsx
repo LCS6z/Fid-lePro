@@ -8,6 +8,7 @@ import { FormInput } from '@/components/FormInput';
 import { colors, radius, shadow, spacing } from '@/constants/colors';
 import { useTheme } from '@/context/ThemeContext';
 import { apiClient } from '@/lib/api';
+import { getApiMessage } from '@/lib/api-error';
 import type { InscriptionCommercantResponse } from '@/lib/types';
 
 type Etape = 1 | 2 | 3;
@@ -132,9 +133,9 @@ export default function InscriptionCommercant() {
         'Vous allez être redirigé vers le paiement sécurisé (150€ de mise en service).',
         [{ text: 'Procéder au paiement', onPress: () => Linking.openURL(checkoutUrl) }]
       );
-    } catch (err: any) {
+    } catch (err: unknown) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      const message = err?.response?.data?.erreur || 'Erreur serveur';
+      const message = getApiMessage(err, 'Erreur serveur');
       Alert.alert('Erreur', message);
     }
     setLoading(false);
@@ -181,7 +182,7 @@ export default function InscriptionCommercant() {
           {etape === 1 && (
             <>
               <Text style={styles.cardTitle}>Informations de connexion</Text>
-              <Text style={styles.cardSubtitle}>Vos identifiants pour accéder à l'espace commerçant</Text>
+              <Text style={styles.cardSubtitle}>{'Vos identifiants pour accéder à l\'espace commerçant'}</Text>
               <FormInput
                 icon="🏪"
                 placeholder="Nom du commerce"

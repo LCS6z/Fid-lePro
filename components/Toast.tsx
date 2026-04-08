@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Animated, {
   useAnimatedStyle,
@@ -61,7 +61,7 @@ export function Toast({ message, type = 'info', visible, duration = 3000, onHide
       translateY.value = -100;
       opacity.value = 0;
     }
-  }, [visible]);
+  }, [visible]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const animStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: translateY.value }],
@@ -85,9 +85,6 @@ export function Toast({ message, type = 'info', visible, duration = 3000, onHide
     </Animated.View>
   );
 }
-
-// Hook utilitaire pour gérer l'état du toast
-import { useState, useCallback } from 'react';
 
 export function useToast() {
   const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);

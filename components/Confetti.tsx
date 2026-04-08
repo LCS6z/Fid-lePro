@@ -40,7 +40,7 @@ function Particle({ color, index }: { color: string; index: number }) {
       (Math.random() - 0.5) * 360,
       { damping: 8, stiffness: 60 }
     ));
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const style = useAnimatedStyle(() => ({
     transform: [

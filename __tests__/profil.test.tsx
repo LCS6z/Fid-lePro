@@ -210,4 +210,39 @@ describe('Profil screen', () => {
       });
     });
   });
+
+  describe('biométrie', () => {
+    it('affiche le toggle biométrique', async () => {
+      await renderScreen();
+      expect(screen.getByLabelText('Activer la biométrie')).toBeTruthy();
+      expect(screen.getByText('Verrouillage biométrique')).toBeTruthy();
+    });
+
+    it('affiche un toast si enableBiometric échoue', async () => {
+      const { enableBiometric } = require('../hooks/useBiometricLock');
+      // enableBiometric est exposé via le mock auto, on override pour ce test
+      const LocalAuth = require('expo-local-authentication');
+      (LocalAuth.hasHardwareAsync as jest.Mock).mockResolvedValueOnce(false);
+
+      await renderScreen();
+      fireEvent.press(screen.getByLabelText('Activer la biométrie'));
+      await waitFor(() => screen.getByText('Biométrie non disponible ou non configurée'));
+    });
+
+    it('label change à Désactiver quand biométrie activée', async () => {
+      // SecureStore retourne 'true' pour la clé biométrie
+      (SecureStore.getItemAsync as jest.Mock).mockImplementation((key: string) => {
+        if (key === 'token') return Promise.resolve('tok_test');
+        if (key === 'role') return Promise.resolve('client');
+        if (key === 'fidelepro_biometric_enabled') return Promise.resolve('true');
+        return Promise.resolve(null);
+      });
+      render(
+        <ThemeProvider>
+          <AuthProvider><Profil /></AuthProvider>
+        </ThemeProvider>
+      );
+      await waitFor(() => screen.getByLabelText('Désactiver la biométrie'));
+    });
+  });
 });

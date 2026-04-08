@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react';
-import { StyleSheet, Text, TextInput, type TextInputProps, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, TextInput, type TextInputProps, TouchableOpacity, View, type ViewStyle, type StyleProp } from 'react-native';
 import { colors, radius, spacing } from '@/constants/colors';
 import { useTheme } from '@/context/ThemeContext';
 
 type Props = TextInputProps & {
   icon?: string;
+  style?: StyleProp<ViewStyle>;
 };
 
 export function FormInput({ style, icon, secureTextEntry, ...props }: Props) {
@@ -47,7 +48,7 @@ export function FormInput({ style, icon, secureTextEntry, ...props }: Props) {
   const [visible, setVisible] = useState(false);
 
   return (
-    <View style={[styles.wrapper, focused && styles.wrapperFocus, style as any]}>
+    <View style={[styles.wrapper, focused && styles.wrapperFocus, style]}>
       {icon ? <Text style={styles.icon}>{icon}</Text> : null}
       <TextInput
         style={styles.input}

@@ -17,6 +17,10 @@ module.exports = {
   collectCoverageFrom: [
     'lib/**/*.ts',
     'context/**/*.tsx',
+    'hooks/useBiometricLock.ts',
+    'hooks/useNotifications.ts',
+    'hooks/useOffline.ts',
+    '!lib/types.ts',
     'app/login.tsx',
     'app/inscription-client.tsx',
     'app/inscription-commercant.tsx',
@@ -25,7 +29,9 @@ module.exports = {
     'app/onboarding.tsx',
     'app/mot-de-passe-oublie.tsx',
     'app/profil.tsx',
-    'lib/cache.ts',
+    'app/cgv.tsx',
+    'app/index.tsx',
+    'components/BiometricLock.tsx',
     'components/ErrorBoundary.tsx',
     'components/FormInput.tsx',
     'components/OfflineBanner.tsx',
@@ -33,9 +39,9 @@ module.exports = {
   ],
   coverageThreshold: {
     global: {
-      branches: 40,
-      functions: 50,
-      lines: 50,
+      branches: 80,
+      functions: 80,
+      lines: 85,
     },
   },
 };

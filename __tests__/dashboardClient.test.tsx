@@ -201,6 +201,18 @@ describe('DashboardClient screen', () => {
       fireEvent.press(screen.getByText('Fermer'));
       await waitFor(() => expect(screen.queryByText('Historique des visites')).toBeNull());
     });
+
+    it('affiche Aucun historique si API échoue', async () => {
+      await renderScreen();
+      (apiClient.get as jest.Mock).mockImplementation((url: string) => {
+        if (url.includes('/historique')) return Promise.reject(new Error('Network'));
+        if (url === '/api/client/profil') return Promise.resolve({ data: PROFIL_MOCK });
+        if (url === '/api/client/tampons') return Promise.resolve({ data: TAMPONS_MOCK });
+        return Promise.resolve({ data: [] });
+      });
+      fireEvent.press(screen.getByText('Le Bon Café'));
+      await waitFor(() => screen.getByText('Aucun historique disponible'));
+    });
   });
 
   describe('modal avis', () => {
@@ -290,6 +302,35 @@ describe('DashboardClient screen', () => {
       const btns = screen.getAllByText('Se déconnecter');
       fireEvent.press(btns[1]); // bouton dans le modal profil
       await waitFor(() => expect(router.replace).toHaveBeenCalledWith('/login'));
+    });
+  });
+
+  describe('barre de progression', () => {
+    it('affiche une barre de progression pour maxTampons > 12', async () => {
+      (SecureStore.getItemAsync as jest.Mock).mockImplementation((key: string) => {
+        if (key === 'token') return Promise.resolve('tok_test');
+        if (key === 'role') return Promise.resolve('client');
+        return Promise.resolve(null);
+      });
+      (apiClient.get as jest.Mock).mockImplementation((url: string) => {
+        if (url === '/api/client/profil') return Promise.resolve({ data: PROFIL_MOCK });
+        if (url === '/api/client/tampons') return Promise.resolve({
+          data: [{
+            carteId: 'carte3', carteName: 'Carte Gold',
+            commercant: { id: 'com3', nom: 'Grande Enseigne' },
+            nombreTampons: 7, maxTampons: 15, recompense: null,
+          }],
+        });
+        return Promise.resolve({ data: [] });
+      });
+      render(
+        <ThemeProvider>
+          <AuthProvider><DashboardClient /></AuthProvider>
+        </ThemeProvider>
+      );
+      await waitFor(() => screen.getByText('Grande Enseigne'));
+      // BarreProgression affiche le texte "X/Y tampons"
+      expect(screen.getAllByText('7/15 tampons').length).toBeGreaterThan(0);
     });
   });
 

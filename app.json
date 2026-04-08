@@ -34,6 +34,7 @@
     },
     "plugins": [
       "expo-router",
+      "@sentry/react-native/expo",
       [
         "expo-splash-screen",
         {
@@ -70,7 +71,9 @@
       "router": {},
       "eas": {
         "projectId": "f2f1be30-74ba-48ce-bbf3-840d0379f2af"
-      }
+      },
+      "APP_ENV": "development",
+      "SENTRY_DSN": ""
     },
     "owner": "lcc6z"
   }

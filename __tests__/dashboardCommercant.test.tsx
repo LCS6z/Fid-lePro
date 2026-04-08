@@ -169,6 +169,24 @@ describe('DashboardCommercant screen', () => {
       fireEvent.press(screen.getByText('Fermer'));
       await waitFor(() => expect(screen.queryByText('scans total')).toBeNull());
     });
+
+    it('Paramètres navigue vers /profil', async () => {
+      await renderScreen();
+      fireEvent.press(screen.getByText('👤'));
+      await waitFor(() => screen.getByLabelText('Paramètres du compte'));
+      fireEvent.press(screen.getByLabelText('Paramètres du compte'));
+      expect(router.push).toHaveBeenCalledWith('/profil');
+    });
+
+    it('Se déconnecter appelle logout', async () => {
+      await renderScreen();
+      fireEvent.press(screen.getByText('👤'));
+      await waitFor(() => screen.getByText('scans total'));
+      // Le bouton Se déconnecter dans le modal
+      const btns = screen.getAllByText('Se déconnecter');
+      fireEvent.press(btns[0]);
+      await waitFor(() => expect(router.replace).toHaveBeenCalledWith('/login'));
+    });
   });
 
   describe('pull to refresh', () => {

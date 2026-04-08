@@ -11,6 +11,7 @@ import { colors, radius, shadow, spacing } from '@/constants/colors';
 import type { Theme } from '@/constants/theme';
 import { useTheme } from '@/context/ThemeContext';
 import { apiClient } from '@/lib/api';
+import { getApiMessage } from '@/lib/api-error';
 
 type Etape = 'email' | 'code' | 'nouveau_mdp' | 'succes';
 
@@ -89,8 +90,8 @@ export default function MotDePasseOublie() {
       });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setEtape('succes');
-    } catch (err: any) {
-      const msg = err?.response?.data?.message || 'Erreur lors de la réinitialisation';
+    } catch (err: unknown) {
+      const msg = getApiMessage(err, 'Erreur lors de la réinitialisation');
       showToast(msg, 'error');
     }
     setLoading(false);

@@ -24,7 +24,7 @@ export function OfflineBanner() {
       translateY.value = withSpring(-60);
       opacity.value = withTiming(0, { duration: 300 });
     }
-  }, [offline]);
+  }, [offline]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const animStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: translateY.value }],

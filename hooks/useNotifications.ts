@@ -2,9 +2,10 @@ import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
 import { router } from 'expo-router';
 import { useEffect, useRef } from 'react';
-import { Platform } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import { apiClient } from '@/lib/api';
 import { authStorage } from '@/lib/auth-storage';
+import { clearBadge } from '@/lib/notification-prefs';
 
 const EXPO_PROJECT_ID = 'f2f1be30-74ba-48ce-bbf3-840d0379f2af';
 
@@ -12,23 +13,35 @@ Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
     shouldPlaySound: true,
-    shouldSetBadge: false,
+    shouldSetBadge: true,
     shouldShowBanner: true,
     shouldShowList: true,
   }),
 });
 
-// Navigue vers le bon écran selon les données de la notif
-function handleDeepLink(response: Notifications.NotificationResponse) {
-  const data = response.notification.request.content.data as Record<string, unknown> | undefined;
-  const screen = data?.screen as string | undefined;
+type NotifData = {
+  screen?: string;
+  type?: string;
+  carteId?: string;
+  commercantId?: string;
+};
 
-  if (screen === 'dashboard-client') {
+/**
+ * Navigue vers le bon écran selon les données de la notif.
+ * - tampon_ajoute / recompense_dispo → dashboard-client
+ * - relance → dashboard-client
+ * - stats_quotidiennes → dashboard-commercant
+ */
+function handleDeepLink(response: Notifications.NotificationResponse) {
+  const data = response.notification.request.content.data as NotifData | undefined;
+  const screen = data?.screen;
+  const type = data?.type;
+
+  if (screen === 'dashboard-client' || type === 'tampon_ajoute' || type === 'recompense_dispo' || type === 'relance') {
     router.replace('/dashboard-client');
-  } else if (screen === 'dashboard-commercant') {
+  } else if (screen === 'dashboard-commercant' || type === 'stats_quotidiennes') {
     router.replace('/dashboard-commercant');
   }
-  // Pas de screen spécifié → on reste sur l'écran courant
 }
 
 export default function useNotifications() {
@@ -38,6 +51,11 @@ export default function useNotifications() {
   useEffect(() => {
     enregistrerNotifications();
 
+    // Badge → 0 quand l'app passe au premier plan
+    const appStateSub = AppState.addEventListener('change', state => {
+      if (state === 'active') clearBadge();
+    });
+
     // Notif reçue pendant que l'app est au premier plan
     notificationListener.current = Notifications.addNotificationReceivedListener(notification => {
       if (__DEV__) console.log('[Notifications] Reçue:', notification);
@@ -46,10 +64,12 @@ export default function useNotifications() {
     // Utilisateur tape sur une notif → deep link
     responseListener.current = Notifications.addNotificationResponseReceivedListener(response => {
       if (__DEV__) console.log('[Notifications] Réponse:', response);
+      clearBadge();
       handleDeepLink(response);
     });
 
     return () => {
+      appStateSub.remove();
       notificationListener.current?.remove();
       responseListener.current?.remove();
     };
@@ -85,11 +105,12 @@ export default function useNotifications() {
     }
 
     if (Platform.OS === 'android') {
-      Notifications.setNotificationChannelAsync('default', {
-        name: 'default',
+      await Notifications.setNotificationChannelAsync('default', {
+        name: 'FidèlePro',
         importance: Notifications.AndroidImportance.MAX,
         vibrationPattern: [0, 250, 250, 250],
         lightColor: '#6637ee',
+        showBadge: true,
       });
     }
   };

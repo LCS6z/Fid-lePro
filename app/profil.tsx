@@ -1,6 +1,6 @@
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   ScrollView,
@@ -17,7 +17,15 @@ import { colors, radius, shadow, spacing } from '@/constants/colors';
 import type { Theme } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
 import { type ThemePreference, useTheme } from '@/context/ThemeContext';
+import { useBiometricLock } from '@/hooks/useBiometricLock';
 import { apiClient } from '@/lib/api';
+import { getApiMessage } from '@/lib/api-error';
+import {
+  type NotifPrefKey,
+  NOTIF_PREFS,
+  getNotifPrefs,
+  setNotifPref,
+} from '@/lib/notification-prefs';
 
 type Section = {
   icon: string;
@@ -33,6 +41,22 @@ export default function Profil() {
   const { logout } = useAuth();
   const insets = useSafeAreaInsets();
   const { toast, showToast, hideToast } = useToast();
+
+  const { biometricEnabled, enableBiometric, disableBiometric } = useBiometricLock();
+
+  const [notifPrefs, setNotifPrefs] = useState<Record<NotifPrefKey, boolean> | null>(null);
+
+  useEffect(() => {
+    getNotifPrefs().then(setNotifPrefs);
+  }, []);
+
+  const toggleNotifPref = async (key: NotifPrefKey) => {
+    if (!notifPrefs) return;
+    const newVal = !notifPrefs[key];
+    setNotifPrefs(prev => prev ? { ...prev, [key]: newVal } : prev);
+    await setNotifPref(key, newVal);
+    Haptics.selectionAsync();
+  };
 
   const [showChangeMdp, setShowChangeMdp] = useState(false);
   const [ancienMdp, setAncienMdp] = useState('');
@@ -65,9 +89,9 @@ export default function Profil() {
       setNouveauMdp('');
       setConfirmMdp('');
       setShowChangeMdp(false);
-    } catch (err: any) {
+    } catch (err: unknown) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      const msg = err?.response?.data?.message || 'Mot de passe actuel incorrect';
+      const msg = getApiMessage(err, 'Mot de passe actuel incorrect');
       showToast(msg, 'error');
     }
     setLoadingMdp(false);
@@ -191,6 +215,58 @@ export default function Profil() {
             ))}
           </View>
         </Animated.View>
+
+        {/* Biométrie */}
+        <Animated.View entering={FadeInDown.duration(400).springify()}>
+          <TouchableOpacity
+            style={styles.row}
+            onPress={async () => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              if (biometricEnabled) {
+                await disableBiometric();
+              } else {
+                const ok = await enableBiometric();
+                if (!ok) showToast('Biométrie non disponible ou non configurée', 'warning');
+              }
+            }}
+            accessibilityLabel={biometricEnabled ? 'Désactiver la biométrie' : 'Activer la biométrie'}
+            accessibilityRole="button"
+          >
+            <View style={styles.rowIcon}>
+              <Text style={styles.rowIconText}>🔐</Text>
+            </View>
+            <View style={styles.rowContent}>
+              <Text style={styles.rowLabel}>Verrouillage biométrique</Text>
+              <Text style={styles.rowSublabel}>
+                {biometricEnabled ? 'Activé — toucher pour désactiver' : 'Désactivé — toucher pour activer'}
+              </Text>
+            </View>
+            <View style={[styles.toggleDot, biometricEnabled && styles.toggleDotOn]} />
+          </TouchableOpacity>
+        </Animated.View>
+
+        {/* Notifications */}
+        {notifPrefs && (
+          <Animated.View entering={FadeInDown.duration(400).springify()} style={styles.apparenceCard}>
+            <Text style={styles.apparenceTitle}>🔔 Notifications</Text>
+            {NOTIF_PREFS.map(pref => (
+              <TouchableOpacity
+                key={pref.key}
+                style={styles.notifRow}
+                onPress={() => toggleNotifPref(pref.key)}
+                accessibilityLabel={pref.label}
+                accessibilityRole="switch"
+                accessibilityState={{ checked: notifPrefs[pref.key] }}
+              >
+                <View style={styles.rowContent}>
+                  <Text style={styles.rowLabel}>{pref.label}</Text>
+                  <Text style={styles.rowSublabel}>{pref.description}</Text>
+                </View>
+                <View style={[styles.toggleDot, notifPrefs[pref.key] && styles.toggleDotOn]} />
+              </TouchableOpacity>
+            ))}
+          </Animated.View>
+        )}
 
         {/* Sections */}
         {sections.map((s, i) => (
@@ -425,6 +501,27 @@ function makeStyles(theme: Theme) {
     apparenceBtnTextActive: {
       color: colors.primary,
       fontWeight: '700',
+    },
+    notifRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: spacing.md,
+      borderTopWidth: 1,
+      borderTopColor: theme.border,
+      gap: spacing.md,
+    },
+    toggleDot: {
+      width: 22,
+      height: 22,
+      borderRadius: 11,
+      backgroundColor: theme.border,
+      borderWidth: 2,
+      borderColor: theme.textMuted,
+      flexShrink: 0,
+    },
+    toggleDotOn: {
+      backgroundColor: colors.primary,
+      borderColor: colors.primary,
     },
   });
 }

@@ -2,7 +2,6 @@ import * as SecureStore from 'expo-secure-store';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
-  Dimensions,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -19,8 +18,6 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, radius, shadow, spacing } from '@/constants/colors';
 import { useTheme } from '@/context/ThemeContext';
-
-const { width } = Dimensions.get('window');
 
 const SLIDES = [
   {

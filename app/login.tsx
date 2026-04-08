@@ -9,6 +9,7 @@ import { colors, radius, shadow, spacing } from '@/constants/colors';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 import { apiClient } from '@/lib/api';
+import { getApiStatus } from '@/lib/api-error';
 
 export default function Login() {
   const { theme } = useTheme();
@@ -76,8 +77,8 @@ export default function Login() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.replace('/dashboard-commercant');
       return;
-    } catch (errCommercant: any) {
-      const statut = errCommercant?.response?.data?.statut;
+    } catch (errCommercant: unknown) {
+      const statut = getApiStatus(errCommercant);
       if (statut === 'inactif') {
         setLoading(false);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);

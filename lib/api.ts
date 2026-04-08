@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/react-native';
 import * as SecureStore from 'expo-secure-store';
 import axios from 'axios';
 import { router } from 'expo-router';
@@ -37,6 +38,19 @@ apiClient.interceptors.response.use(
       await SecureStore.deleteItemAsync('token');
       await SecureStore.deleteItemAsync('role');
       router.replace('/login');
+    }
+
+    // Reporter les erreurs serveur (5xx) à Sentry
+    const status = error?.response?.status;
+    if (status >= 500) {
+      Sentry.captureException(error, {
+        extra: {
+          url: error?.config?.url,
+          method: error?.config?.method,
+          status,
+          data: error?.response?.data,
+        },
+      });
     }
 
     return Promise.reject(error);
