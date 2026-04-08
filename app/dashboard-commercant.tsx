@@ -1,7 +1,7 @@
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { memo, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   FlatList,
@@ -36,7 +36,7 @@ type Stats = {
 
 const JOURS = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
 
-function GraphiqueActivite({ clients }: { clients: ClientCommercant[] }) {
+const GraphiqueActivite = memo(function GraphiqueActivite({ clients }: { clients: ClientCommercant[] }) {
   const { theme } = useTheme();
   const styles = useMemo(() => makeStyles(theme), [theme]);
   const barreScale = useSharedValue(0);
@@ -87,9 +87,9 @@ function GraphiqueActivite({ clients }: { clients: ClientCommercant[] }) {
       </View>
     </Animated.View>
   );
-}
+});
 
-function CarteStatistique({ icon, valeur, label, couleur, index }: {
+const CarteStatistique = memo(function CarteStatistique({ icon, valeur, label, couleur, index }: {
   icon: string;
   valeur: string | number;
   label: string;
@@ -110,9 +110,9 @@ function CarteStatistique({ icon, valeur, label, couleur, index }: {
       <Text style={styles.statLabel}>{label}</Text>
     </Animated.View>
   );
-}
+});
 
-function CarteClient({ client, index, onRelancer }: {
+const CarteClient = memo(function CarteClient({ client, index, onRelancer }: {
   client: ClientCommercant;
   index: number;
   onRelancer: (email: string, nom: string) => void;
@@ -175,7 +175,7 @@ function CarteClient({ client, index, onRelancer }: {
       )}
     </Animated.View>
   );
-}
+});
 
 export default function DashboardCommercant() {
   const { theme } = useTheme();

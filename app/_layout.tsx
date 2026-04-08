@@ -1,8 +1,10 @@
 import * as Sentry from '@sentry/react-native';
 import * as Notifications from 'expo-notifications';
+import * as Updates from 'expo-updates';
 import { router, Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
+import { useCallback, useEffect } from 'react';
+import { Alert } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { BiometricLock } from '@/components/BiometricLock';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
@@ -24,6 +26,32 @@ Sentry.init({
   debug: false,
 });
 
+// Vérifie les mises à jour OTA au démarrage (prod uniquement)
+function useOtaUpdate() {
+  const checkUpdate = useCallback(async () => {
+    if (!Updates.isEnabled || !config.isProd) return;
+    try {
+      const result = await Updates.checkForUpdateAsync();
+      if (!result.isAvailable) return;
+      await Updates.fetchUpdateAsync();
+      Alert.alert(
+        'Mise à jour disponible',
+        "Une nouvelle version a été téléchargée. Redémarrez pour l'appliquer.",
+        [
+          { text: 'Plus tard', style: 'cancel' },
+          { text: 'Redémarrer', onPress: () => Updates.reloadAsync() },
+        ]
+      );
+    } catch {
+      // Silencieux — ne pas bloquer l'app si le check échoue
+    }
+  }, []);
+
+  useEffect(() => {
+    checkUpdate();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+}
+
 // Gère le deep link depuis une notification (foreground, background et killed state)
 function useNotificationLaunch() {
   const lastResponse = Notifications.useLastNotificationResponse();
@@ -38,6 +66,7 @@ function useNotificationLaunch() {
 }
 
 function AppContent() {
+  useOtaUpdate();
   useNotificationLaunch();
   const { lockState, unlock } = useBiometricLock();
 
