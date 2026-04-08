@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import * as SecureStore from 'expo-secure-store';
 import { router } from 'expo-router';
 import { Alert } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import React from 'react';
 import { AuthProvider } from '../context/AuthContext';
 import { ThemeProvider } from '../context/ThemeContext';
@@ -32,7 +33,7 @@ const renderScreen = async () => {
 };
 
 describe('Profil screen', () => {
-  beforeEach(() => { jest.clearAllMocks(); cleanup(); });
+  beforeEach(async () => { jest.clearAllMocks(); cleanup(); await AsyncStorage.clear(); });
 
   describe('affichage', () => {
     it('affiche les sections principales', async () => {
@@ -41,6 +42,14 @@ describe('Profil screen', () => {
       expect(screen.getByText('Conditions générales')).toBeTruthy();
       expect(screen.getByText('Se déconnecter')).toBeTruthy();
       expect(screen.getByText('Supprimer mon compte')).toBeTruthy();
+    });
+
+    it('affiche la section Apparence avec 3 options', async () => {
+      await renderScreen();
+      expect(screen.getByText('🎨 Apparence')).toBeTruthy();
+      expect(screen.getByText('☀️ Clair')).toBeTruthy();
+      expect(screen.getByText('⚙️ Auto')).toBeTruthy();
+      expect(screen.getByText('🌙 Sombre')).toBeTruthy();
     });
 
     it('navigue vers /cgv sur Conditions générales', async () => {
@@ -168,6 +177,36 @@ describe('Profil screen', () => {
       await waitFor(() => {
         expect(apiClient.delete).toHaveBeenCalledWith('/api/auth/compte');
         expect(router.replace).toHaveBeenCalledWith('/login');
+      });
+    });
+  });
+
+  describe('apparence', () => {
+    it('sélectionne le thème clair', async () => {
+      await renderScreen();
+      fireEvent.press(screen.getByText('☀️ Clair'));
+      // La préférence est persistée en AsyncStorage
+      await waitFor(async () => {
+        const val = await AsyncStorage.getItem('fidelepro_theme_preference');
+        expect(val).toBe('light');
+      });
+    });
+
+    it('sélectionne le thème sombre', async () => {
+      await renderScreen();
+      fireEvent.press(screen.getByText('🌙 Sombre'));
+      await waitFor(async () => {
+        const val = await AsyncStorage.getItem('fidelepro_theme_preference');
+        expect(val).toBe('dark');
+      });
+    });
+
+    it('sélectionne le mode automatique', async () => {
+      await renderScreen();
+      fireEvent.press(screen.getByText('⚙️ Auto'));
+      await waitFor(async () => {
+        const val = await AsyncStorage.getItem('fidelepro_theme_preference');
+        expect(val).toBe('system');
       });
     });
   });

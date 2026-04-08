@@ -16,7 +16,7 @@ import { Toast, useToast } from '@/components/Toast';
 import { colors, radius, shadow, spacing } from '@/constants/colors';
 import type { Theme } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
-import { useTheme } from '@/context/ThemeContext';
+import { type ThemePreference, useTheme } from '@/context/ThemeContext';
 import { apiClient } from '@/lib/api';
 
 type Section = {
@@ -28,7 +28,7 @@ type Section = {
 };
 
 export default function Profil() {
-  const { theme } = useTheme();
+  const { theme, themePreference, setThemePreference } = useTheme();
   const styles = useMemo(() => makeStyles(theme), [theme]);
   const { logout } = useAuth();
   const insets = useSafeAreaInsets();
@@ -162,6 +162,34 @@ export default function Profil() {
             <Text style={styles.avatarEmoji}>👤</Text>
           </View>
           <Text style={styles.avatarLabel}>Mon compte</Text>
+        </Animated.View>
+
+        {/* Apparence */}
+        <Animated.View entering={FadeInDown.duration(400).springify()} style={styles.apparenceCard}>
+          <Text style={styles.apparenceTitle}>🎨 Apparence</Text>
+          <View style={styles.apparenceRow}>
+            {([
+              { key: 'light', label: '☀️ Clair' },
+              { key: 'system', label: '⚙️ Auto' },
+              { key: 'dark',  label: '🌙 Sombre' },
+            ] as { key: ThemePreference; label: string }[]).map(opt => (
+              <TouchableOpacity
+                key={opt.key}
+                style={[styles.apparenceBtn, themePreference === opt.key && styles.apparenceBtnActive]}
+                onPress={() => {
+                  Haptics.selectionAsync();
+                  setThemePreference(opt.key);
+                }}
+                accessibilityLabel={opt.label}
+                accessibilityRole="button"
+                accessibilityState={{ selected: themePreference === opt.key }}
+              >
+                <Text style={[styles.apparenceBtnText, themePreference === opt.key && styles.apparenceBtnTextActive]}>
+                  {opt.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
         </Animated.View>
 
         {/* Sections */}
@@ -358,6 +386,45 @@ function makeStyles(theme: Theme) {
       color: theme.textMuted,
       fontSize: 12,
       marginTop: spacing.xxxl,
+    },
+    apparenceCard: {
+      backgroundColor: theme.surface,
+      borderRadius: radius.xl,
+      padding: spacing.lg,
+      marginBottom: spacing.md,
+      borderWidth: 1,
+      borderColor: theme.border,
+    },
+    apparenceTitle: {
+      fontSize: 15,
+      fontWeight: '600',
+      color: theme.text,
+      marginBottom: spacing.md,
+    },
+    apparenceRow: {
+      flexDirection: 'row',
+      gap: spacing.sm,
+    },
+    apparenceBtn: {
+      flex: 1,
+      paddingVertical: spacing.sm,
+      borderRadius: radius.lg,
+      borderWidth: 1.5,
+      borderColor: theme.border,
+      alignItems: 'center',
+    },
+    apparenceBtnActive: {
+      borderColor: colors.primary,
+      backgroundColor: `${colors.primary}18`,
+    },
+    apparenceBtnText: {
+      fontSize: 13,
+      color: theme.textMuted,
+      fontWeight: '500',
+    },
+    apparenceBtnTextActive: {
+      color: colors.primary,
+      fontWeight: '700',
     },
   });
 }
