@@ -160,6 +160,42 @@ router.get('/avis/:commercantId', async (req, res) => {
     res.status(500).json({ message: 'Erreur serveur', erreur: err.message })
   }
 })
+// GET /api/client/partenaires — liste des commerçants partenaires groupés par catégorie
+router.get('/partenaires', verifierToken, verifierRole('client'), async (req, res) => {
+  try {
+    const partenaires = await prisma.commercant.findMany({
+      where: { estPartenaire: true },
+      select: {
+        id: true,
+        nom: true,
+        categorie: true,
+        description: true,
+        adresse: true,
+        telephone: true,
+        lienGoogle: true,
+      },
+      orderBy: [{ categorie: 'asc' }, { nom: 'asc' }]
+    })
+
+    // Grouper par catégorie
+    const grouped = partenaires.reduce((acc, p) => {
+      const cat = p.categorie || 'Autres'
+      if (!acc[cat]) acc[cat] = []
+      acc[cat].push(p)
+      return acc
+    }, {})
+
+    const categories = Object.entries(grouped).map(([nom, commerces]) => ({
+      nom,
+      commerces
+    }))
+
+    res.json({ categories, total: partenaires.length })
+  } catch (err) {
+    res.status(500).json({ message: 'Erreur serveur', erreur: err.message })
+  }
+})
+
 // POST /api/client/fcm-token
 router.post('/fcm-token', verifierToken, verifierRole('client'), async (req, res) => {
   try {

@@ -31,6 +31,10 @@ model Commercant {
   statutAbonnement     String   @default("inactif")
   fcmToken             String?
 
+  estPartenaire        Boolean  @default(false)
+  categorie            String?
+  description          String?
+
   cartes               Carte[]
   avis                 Avis[]
 }
