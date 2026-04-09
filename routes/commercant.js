@@ -122,7 +122,8 @@ router.post('/relancer', verifierToken, verifierRole('commercant'), async (req, 
     await envoyerNotification(
       tampon.client.fcmToken,
       '📣 Votre commerçant vous manque !',
-      `${commercant.nom} vous invite à revenir pour accumuler vos tampons.`
+      `${commercant.nom} vous invite à revenir pour accumuler vos tampons.`,
+      { screen: 'dashboard-client', type: 'relance' }
     )
 
     res.json({ message: 'Notification envoyée', sent: true })
