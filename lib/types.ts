@@ -50,6 +50,23 @@ export type ScanResult = {
   recompense?: string | null;
 };
 
+// ─── Partenaires ─────────────────────────────────────────────────────────────
+
+export type Partenaire = {
+  id: string;
+  nom: string;
+  categorie: string | null;
+  description: string | null;
+  adresse: string | null;
+  telephone: string | null;
+  lienGoogle: string | null;
+};
+
+export type CategoriePartenaires = {
+  nom: string;
+  commerces: Partenaire[];
+};
+
 // ─── Stripe ──────────────────────────────────────────────────────────────────
 
 export type InscriptionCommercantResponse = {

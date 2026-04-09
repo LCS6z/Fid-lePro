@@ -537,6 +537,22 @@ export default function DashboardClient() {
             </View>
           </Animated.View>
 
+          {/* Commerces partenaires */}
+          <Animated.View entering={FadeInDown.duration(500).delay(180).springify()}>
+            <TouchableOpacity
+              style={styles.partenairesBtn}
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push('/partenaires'); }}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.partenairesBtnIcon}>🏪</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.partenairesBtnTitle}>Commerces partenaires</Text>
+                <Text style={styles.partenairesBtnSubtitle}>Découvrez nos enseignes partenaires</Text>
+              </View>
+              <Text style={styles.partenairesBtnArrow}>›</Text>
+            </TouchableOpacity>
+          </Animated.View>
+
           {/* Cartes fidélité */}
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Ma fidélité</Text>
@@ -824,6 +840,22 @@ function makeStyles(theme: Theme) {
       color: theme.textMuted,
       fontSize: 12,
     },
+    partenairesBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: theme.surface,
+      borderRadius: radius.card,
+      padding: spacing.lg,
+      marginBottom: spacing.xl,
+      gap: spacing.md,
+      ...shadow.statCard,
+      borderWidth: 1.5,
+      borderColor: colors.primary + '30',
+    },
+    partenairesBtnIcon: { fontSize: 28 },
+    partenairesBtnTitle: { fontSize: 15, fontWeight: 'bold', color: theme.text },
+    partenairesBtnSubtitle: { fontSize: 12, color: theme.textMuted, marginTop: 2 },
+    partenairesBtnArrow: { fontSize: 24, color: colors.primary, fontWeight: 'bold' },
     sectionHeader: {
       marginBottom: spacing.lg,
     },
