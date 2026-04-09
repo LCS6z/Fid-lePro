@@ -55,4 +55,15 @@ router.post('/envoyer', verifierToken, verifierRole('commercant'), async (req, r
   }
 })
 
+// Déclenche manuellement la relance des clients inactifs (test / admin)
+router.post('/relance-inactifs', verifierToken, verifierRole('commercant'), async (req, res) => {
+  try {
+    const { relancerClientsInactifs } = require('../services/relanceInactifs')
+    await relancerClientsInactifs()
+    res.json({ message: 'Relance déclenchée' })
+  } catch (err) {
+    res.status(500).json({ message: 'Erreur', erreur: err.message })
+  }
+})
+
 module.exports = router
