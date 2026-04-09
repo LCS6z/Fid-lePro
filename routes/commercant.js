@@ -2,6 +2,7 @@ const express = require('express')
 const router = express.Router()
 const { PrismaClient } = require('@prisma/client')
 const { verifierToken, verifierRole } = require('../middleware/auth')
+const { envoyerNotification } = require('../services/notification')
 
 const prisma = new PrismaClient()
 
@@ -64,6 +65,67 @@ router.get('/clients', verifierToken, verifierRole('commercant'), async (req, re
     const clients = Object.values(clientsMap).sort((a, b) => b.totalTampons - a.totalTampons)
 
     res.json({ clients })
+  } catch (err) {
+    res.status(500).json({ message: 'Erreur serveur', erreur: err.message })
+  }
+})
+
+// Sauvegarde le FCM token du commerçant (pour les notifs stats quotidiennes)
+router.post('/fcm-token', verifierToken, verifierRole('commercant'), async (req, res) => {
+  try {
+    const { fcmToken } = req.body
+    if (!fcmToken) return res.status(400).json({ message: 'fcmToken requis' })
+
+    await prisma.commercant.update({
+      where: { id: req.user.id },
+      data: { fcmToken }
+    })
+
+    res.json({ message: 'Token FCM enregistré' })
+  } catch (err) {
+    res.status(500).json({ message: 'Erreur serveur', erreur: err.message })
+  }
+})
+
+// Envoie une notification push de relance à un client inactif
+router.post('/relancer', verifierToken, verifierRole('commercant'), async (req, res) => {
+  try {
+    const { email } = req.body
+    if (!email) return res.status(400).json({ message: 'Email requis' })
+
+    const commercantId = req.user.id
+
+    // Vérifie que ce client a bien un tampon chez ce commerçant
+    const tampon = await prisma.tampon.findFirst({
+      where: {
+        carte: { commercantId },
+        client: { email }
+      },
+      include: {
+        client: { select: { nom: true, fcmToken: true } }
+      }
+    })
+
+    if (!tampon) {
+      return res.status(404).json({ message: 'Client introuvable pour ce commerçant' })
+    }
+
+    if (!tampon.client.fcmToken) {
+      return res.status(200).json({ message: 'Client sans notifications activées', sent: false })
+    }
+
+    const commercant = await prisma.commercant.findUnique({
+      where: { id: commercantId },
+      select: { nom: true }
+    })
+
+    await envoyerNotification(
+      tampon.client.fcmToken,
+      '📣 Votre commerçant vous manque !',
+      `${commercant.nom} vous invite à revenir pour accumuler vos tampons.`
+    )
+
+    res.json({ message: 'Notification envoyée', sent: true })
   } catch (err) {
     res.status(500).json({ message: 'Erreur serveur', erreur: err.message })
   }

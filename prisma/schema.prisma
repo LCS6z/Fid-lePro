@@ -29,6 +29,7 @@ model Commercant {
   stripeSubscriptionId String?
   stripeSetupPaid      Boolean  @default(false)
   statutAbonnement     String   @default("inactif")
+  fcmToken             String?
 
   cartes               Carte[]
   avis                 Avis[]
