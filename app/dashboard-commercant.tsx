@@ -1,7 +1,7 @@
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
-import { memo, useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   FlatList,
@@ -208,7 +208,7 @@ export default function DashboardCommercant() {
     );
   }, [clients, recherche]);
 
-  const relancerClient = async (email: string, nom: string) => {
+  const relancerClient = useCallback(async (email: string, nom: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     try {
       await apiClient.post('/api/commercant/relancer', { email });
@@ -217,7 +217,7 @@ export default function DashboardCommercant() {
       // L'endpoint peut ne pas exister — on affiche quand même le succès UX
       Alert.alert('📨 Relance envoyée', `${nom} sera notifié prochainement.`);
     }
-  };
+  }, []);
   const [stats, setStats] = useState<Stats>({
     totalClients: 0,
     totalScans: 0,
