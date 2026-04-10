@@ -22,7 +22,7 @@ apiClient.interceptors.request.use(async (config) => {
   return config;
 });
 
-// Gestion globale des erreurs : logout auto sur 401, debug en dev
+// Gestion globale des erreurs : refresh auto sur 401, logout si refresh échoue
 apiClient.interceptors.response.use(
   (response) => response,
   async (error) => {
@@ -32,12 +32,35 @@ apiClient.interceptors.response.use(
       console.warn(`[API] ${status ?? 'ERR'} — ${url}`, error?.response?.data);
     }
 
-    // Token expiré ou invalide → on efface la session et on renvoie au login
-    if (error?.response?.status === 401 && !error?.config?._retry401) {
-      error.config._retry401 = true; // évite la boucle infinie
-      await SecureStore.deleteItemAsync('token');
-      await SecureStore.deleteItemAsync('role');
-      router.replace('/login');
+    if (error?.response?.status === 401 && !error?.config?._retry) {
+      error.config._retry = true;
+
+      try {
+        const refreshToken = await SecureStore.getItemAsync('refreshToken');
+        if (!refreshToken) throw new Error('no refresh token');
+
+        // Tenter de renouveler le token d'accès
+        const res = await axios.post(`${API_BASE_URL}/api/auth/refresh`, { refreshToken });
+        const { token: newToken, refreshToken: newRefreshToken } = res.data;
+
+        // Sauvegarder les nouveaux tokens
+        await Promise.all([
+          SecureStore.setItemAsync('token', newToken),
+          SecureStore.setItemAsync('refreshToken', newRefreshToken),
+        ]);
+
+        // Relancer la requête originale avec le nouveau token
+        error.config.headers.Authorization = `Bearer ${newToken}`;
+        return apiClient(error.config);
+      } catch {
+        // Refresh échoué → déconnecter
+        await Promise.all([
+          SecureStore.deleteItemAsync('token'),
+          SecureStore.deleteItemAsync('role'),
+          SecureStore.deleteItemAsync('refreshToken'),
+        ]);
+        router.replace('/login');
+      }
     }
 
     // Reporter les erreurs serveur (5xx) à Sentry

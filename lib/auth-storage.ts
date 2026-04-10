@@ -7,10 +7,11 @@ export type UserRole = 'client' | 'commercant';
  * Remplace AsyncStorage qui stockait le token en clair.
  */
 export const authStorage = {
-  async setSession(token: string, role: UserRole): Promise<void> {
+  async setSession(token: string, role: UserRole, refreshToken?: string): Promise<void> {
     await Promise.all([
       SecureStore.setItemAsync('token', token),
       SecureStore.setItemAsync('role', role),
+      refreshToken ? SecureStore.setItemAsync('refreshToken', refreshToken) : Promise.resolve(),
     ]);
   },
 
@@ -22,10 +23,19 @@ export const authStorage = {
     return SecureStore.getItemAsync('role') as Promise<UserRole | null>;
   },
 
+  async getRefreshToken(): Promise<string | null> {
+    return SecureStore.getItemAsync('refreshToken');
+  },
+
+  async setToken(token: string): Promise<void> {
+    return SecureStore.setItemAsync('token', token);
+  },
+
   async clear(): Promise<void> {
     await Promise.all([
       SecureStore.deleteItemAsync('token'),
       SecureStore.deleteItemAsync('role'),
+      SecureStore.deleteItemAsync('refreshToken'),
     ]);
   },
 

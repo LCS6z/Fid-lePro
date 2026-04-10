@@ -73,7 +73,7 @@ export default function Login() {
 
     try {
       const res = await apiClient.post('/api/auth/connexion/commercant', { email, password });
-      await login(res.data.token, 'commercant');
+      await login(res.data.token, 'commercant', res.data.refreshToken);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.replace('/dashboard-commercant');
       return;
@@ -127,7 +127,7 @@ export default function Login() {
 
     try {
       const res = await apiClient.post('/api/auth/connexion/client', { email, password });
-      await login(res.data.token, 'client');
+      await login(res.data.token, 'client', res.data.refreshToken);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.replace('/dashboard-client');
     } catch {

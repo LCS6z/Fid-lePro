@@ -8,7 +8,7 @@ type AuthState = {
   role: UserRole | null;
   /** true pendant le chargement initial depuis le stockage */
   isLoading: boolean;
-  login: (token: string, role: UserRole) => Promise<void>;
+  login: (token: string, role: UserRole, refreshToken?: string) => Promise<void>;
   logout: () => Promise<void>;
 };
 
@@ -33,8 +33,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     restore();
   }, []);
 
-  const login = useCallback(async (newToken: string, newRole: UserRole) => {
-    await authStorage.setSession(newToken, newRole);
+  const login = useCallback(async (newToken: string, newRole: UserRole, refreshToken?: string) => {
+    await authStorage.setSession(newToken, newRole, refreshToken);
     setToken(newToken);
     setRole(newRole);
   }, []);
