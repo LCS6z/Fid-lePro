@@ -6,6 +6,62 @@ const { envoyerNotification } = require('../services/notification')
 
 const prisma = new PrismaClient()
 
+// GET /api/commercant/profil — récupère le profil du commerçant
+router.get('/profil', verifierToken, verifierRole('commercant'), async (req, res) => {
+  try {
+    const commercant = await prisma.commercant.findUnique({
+      where: { id: req.user.id },
+      select: { id: true, nom: true, email: true, telephone: true, adresse: true, description: true, horaires: true, categorie: true, estPartenaire: true, statutAbonnement: true }
+    })
+    if (!commercant) return res.status(404).json({ message: 'Introuvable' })
+    res.json({ commercant })
+  } catch (err) {
+    res.status(500).json({ message: 'Erreur serveur', erreur: err.message })
+  }
+})
+
+// PATCH /api/commercant/profil — met à jour les infos du commerçant
+router.patch('/profil', verifierToken, verifierRole('commercant'), async (req, res) => {
+  try {
+    const { nom, telephone, adresse, description, horaires } = req.body
+    const data = {}
+    if (nom && nom.trim()) data.nom = nom.trim()
+    if (telephone !== undefined) data.telephone = telephone || null
+    if (adresse !== undefined) data.adresse = adresse || null
+    if (description !== undefined) data.description = description || null
+    if (horaires !== undefined) data.horaires = horaires || null
+
+    const commercant = await prisma.commercant.update({
+      where: { id: req.user.id },
+      data,
+      select: { id: true, nom: true, email: true, telephone: true, adresse: true, description: true, horaires: true }
+    })
+    res.json({ message: 'Profil mis à jour', commercant })
+  } catch (err) {
+    res.status(500).json({ message: 'Erreur serveur', erreur: err.message })
+  }
+})
+
+// POST /api/commercant/avis/:id/reponse — répondre à un avis
+router.post('/avis/:id/reponse', verifierToken, verifierRole('commercant'), async (req, res) => {
+  try {
+    const { reponse } = req.body
+    if (!reponse || !reponse.trim()) return res.status(400).json({ message: 'Réponse requise' })
+
+    const avis = await prisma.avis.findUnique({ where: { id: req.params.id } })
+    if (!avis) return res.status(404).json({ message: 'Avis introuvable' })
+    if (avis.commercantId !== req.user.id) return res.status(403).json({ message: 'Non autorisé' })
+
+    const updated = await prisma.avis.update({
+      where: { id: req.params.id },
+      data: { reponse: reponse.trim(), reponseAt: new Date() }
+    })
+    res.json({ message: 'Réponse publiée', avis: updated })
+  } catch (err) {
+    res.status(500).json({ message: 'Erreur serveur', erreur: err.message })
+  }
+})
+
 // GET /api/commercant/cartes — liste les cartes du commerçant
 router.get('/cartes', verifierToken, verifierRole('commercant'), async (req, res) => {
   try {

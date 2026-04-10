@@ -6,7 +6,8 @@ const rateLimit = require('express-rate-limit')
 const { PrismaClient } = require('@prisma/client')
 const { v4: uuidv4 } = require('uuid')
 const prisma = new PrismaClient()
-const { envoyerBienvenueClient } = require('../services/email')
+const { verifierToken } = require('../middleware/auth')
+const { envoyerBienvenueClient, envoyerCodeReset } = require('../services/email')
 
 // Max 10 tentatives de connexion par IP toutes les 15 minutes
 const limiterConnexion = rateLimit({
@@ -160,6 +161,141 @@ router.post('/connexion/admin', limiterConnexion, async (req, res) => {
       role: 'admin',
       admin: { id: admin.id, nom: admin.nom, email: admin.email }
     })
+  } catch (err) {
+    res.status(500).json({ message: 'Erreur serveur', erreur: err.message })
+  }
+})
+
+// POST /api/auth/mdp-oublie — envoie un code de reset par email
+router.post('/mdp-oublie', rateLimit({ windowMs: 15 * 60 * 1000, max: 5, message: { message: 'Trop de tentatives.' } }), async (req, res) => {
+  try {
+    const { email } = req.body
+    if (!email) return res.status(400).json({ message: 'Email requis' })
+
+    const code = String(Math.floor(100000 + Math.random() * 900000))
+    const expiry = new Date(Date.now() + 15 * 60 * 1000)
+
+    // Chercher client ou commerçant
+    const client = await prisma.client.findUnique({ where: { email } })
+    const commercant = !client ? await prisma.commercant.findUnique({ where: { email } }) : null
+
+    if (client) {
+      await prisma.client.update({ where: { email }, data: { resetCode: code, resetCodeExpiry: expiry } })
+      try { await envoyerCodeReset(email, client.nom, code) } catch (e) { console.log('Email reset:', e) }
+    } else if (commercant) {
+      await prisma.commercant.update({ where: { email }, data: { resetCode: code, resetCodeExpiry: expiry } })
+      try { await envoyerCodeReset(email, commercant.nom, code) } catch (e) { console.log('Email reset:', e) }
+    }
+    // Toujours répondre 200 pour ne pas exposer si l'email existe
+    res.json({ message: 'Si cet email est enregistré, un code vous a été envoyé.' })
+  } catch (err) {
+    res.status(500).json({ message: 'Erreur serveur', erreur: err.message })
+  }
+})
+
+// POST /api/auth/verifier-code — vérifie le code reset
+router.post('/verifier-code', async (req, res) => {
+  try {
+    const { email, code } = req.body
+    if (!email || !code) return res.status(400).json({ message: 'Email et code requis' })
+
+    const client = await prisma.client.findUnique({ where: { email } })
+    const commercant = !client ? await prisma.commercant.findUnique({ where: { email } }) : null
+    const user = client || commercant
+
+    if (!user || user.resetCode !== code || !user.resetCodeExpiry || new Date() > user.resetCodeExpiry) {
+      return res.status(400).json({ message: 'Code invalide ou expiré' })
+    }
+    res.json({ message: 'Code valide' })
+  } catch (err) {
+    res.status(500).json({ message: 'Erreur serveur', erreur: err.message })
+  }
+})
+
+// POST /api/auth/reinitialiser-mdp — réinitialise le mot de passe
+router.post('/reinitialiser-mdp', async (req, res) => {
+  try {
+    const { email, code, nouveauMotDePasse } = req.body
+    if (!email || !code || !nouveauMotDePasse) return res.status(400).json({ message: 'Données manquantes' })
+    if (nouveauMotDePasse.length < 8) return res.status(400).json({ message: 'Mot de passe trop court (8 caractères minimum)' })
+
+    const client = await prisma.client.findUnique({ where: { email } })
+    const commercant = !client ? await prisma.commercant.findUnique({ where: { email } }) : null
+    const user = client || commercant
+
+    if (!user || user.resetCode !== code || !user.resetCodeExpiry || new Date() > user.resetCodeExpiry) {
+      return res.status(400).json({ message: 'Code invalide ou expiré' })
+    }
+
+    const hash = await bcrypt.hash(nouveauMotDePasse, 10)
+    if (client) {
+      await prisma.client.update({ where: { email }, data: { password: hash, resetCode: null, resetCodeExpiry: null } })
+    } else {
+      await prisma.commercant.update({ where: { email }, data: { password: hash, resetCode: null, resetCodeExpiry: null } })
+    }
+    res.json({ message: 'Mot de passe réinitialisé avec succès' })
+  } catch (err) {
+    res.status(500).json({ message: 'Erreur serveur', erreur: err.message })
+  }
+})
+
+// POST /api/auth/changer-mdp — change le mot de passe (authentifié)
+router.post('/changer-mdp', verifierToken, async (req, res) => {
+  try {
+    const { ancienMotDePasse, nouveauMotDePasse } = req.body
+    if (!ancienMotDePasse || !nouveauMotDePasse) return res.status(400).json({ message: 'Données manquantes' })
+    if (nouveauMotDePasse.length < 8) return res.status(400).json({ message: 'Mot de passe trop court (8 caractères minimum)' })
+
+    const { id, role } = req.user
+    let user
+    if (role === 'client') user = await prisma.client.findUnique({ where: { id } })
+    else if (role === 'commercant') user = await prisma.commercant.findUnique({ where: { id } })
+    else return res.status(403).json({ message: 'Non autorisé' })
+
+    if (!user) return res.status(404).json({ message: 'Utilisateur introuvable' })
+
+    const valide = await bcrypt.compare(ancienMotDePasse, user.password)
+    if (!valide) return res.status(400).json({ message: 'Mot de passe actuel incorrect' })
+
+    const hash = await bcrypt.hash(nouveauMotDePasse, 10)
+    if (role === 'client') await prisma.client.update({ where: { id }, data: { password: hash } })
+    else await prisma.commercant.update({ where: { id }, data: { password: hash } })
+
+    res.json({ message: 'Mot de passe modifié avec succès' })
+  } catch (err) {
+    res.status(500).json({ message: 'Erreur serveur', erreur: err.message })
+  }
+})
+
+// DELETE /api/auth/compte — supprime le compte (authentifié)
+router.delete('/compte', verifierToken, async (req, res) => {
+  try {
+    const { id, role } = req.user
+
+    if (role === 'client') {
+      await prisma.$transaction([
+        prisma.avis.deleteMany({ where: { clientId: id } }),
+        prisma.recompenseValidee.deleteMany({ where: { clientId: id } }),
+        prisma.tampon.deleteMany({ where: { clientId: id } }),
+        prisma.cashback.deleteMany({ where: { clientId: id } }),
+        prisma.client.delete({ where: { id } }),
+      ])
+    } else if (role === 'commercant') {
+      const cartes = await prisma.carte.findMany({ where: { commercantId: id }, select: { id: true } })
+      const carteIds = cartes.map(c => c.id)
+      await prisma.$transaction([
+        prisma.recompenseValidee.deleteMany({ where: { carteId: { in: carteIds } } }),
+        prisma.tampon.deleteMany({ where: { carteId: { in: carteIds } } }),
+        prisma.cashback.deleteMany({ where: { carteId: { in: carteIds } } }),
+        prisma.carte.deleteMany({ where: { commercantId: id } }),
+        prisma.avis.deleteMany({ where: { commercantId: id } }),
+        prisma.commercant.delete({ where: { id } }),
+      ])
+    } else {
+      return res.status(403).json({ message: 'Non autorisé' })
+    }
+
+    res.json({ message: 'Compte supprimé avec succès' })
   } catch (err) {
     res.status(500).json({ message: 'Erreur serveur', erreur: err.message })
   }

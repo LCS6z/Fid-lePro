@@ -197,6 +197,43 @@ router.get('/partenaires', verifierToken, verifierRole('client'), async (req, re
   }
 })
 
+// PATCH /api/client/profil — met à jour nom et téléphone
+router.patch('/profil', verifierToken, verifierRole('client'), async (req, res) => {
+  try {
+    const { nom, telephone } = req.body
+    const data = {}
+    if (nom && nom.trim()) data.nom = nom.trim()
+    if (telephone !== undefined) data.telephone = telephone || null
+
+    const client = await prisma.client.update({
+      where: { id: req.user.id },
+      data,
+      select: { id: true, nom: true, email: true, telephone: true, qrCode: true }
+    })
+    res.json({ message: 'Profil mis à jour', client })
+  } catch (err) {
+    res.status(500).json({ message: 'Erreur serveur', erreur: err.message })
+  }
+})
+
+// GET /api/client/recompenses — historique des récompenses validées
+router.get('/recompenses', verifierToken, verifierRole('client'), async (req, res) => {
+  try {
+    const recompenses = await prisma.recompenseValidee.findMany({
+      where: { clientId: req.user.id },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        carte: {
+          select: { nom: true, recompense: true, commercant: { select: { nom: true } } }
+        }
+      }
+    })
+    res.json({ recompenses })
+  } catch (err) {
+    res.status(500).json({ message: 'Erreur serveur', erreur: err.message })
+  }
+})
+
 // POST /api/client/fcm-token
 router.post('/fcm-token', verifierToken, verifierRole('client'), async (req, res) => {
   try {

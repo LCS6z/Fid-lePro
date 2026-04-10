@@ -35,21 +35,25 @@ model Commercant {
   categorie            String?
   description          String?
   horaires             String?
+  resetCode            String?
+  resetCodeExpiry      DateTime?
 
   cartes               Carte[]
   avis                 Avis[]
 }
 
 model Client {
-  id            String     @id @default(cuid())
-  nom           String
-  email         String     @unique
-  password      String
-  telephone     String?
-  dateNaissance DateTime?
-  qrCode        String?    @unique
-  fcmToken      String?
-  createdAt     DateTime   @default(now())
+  id               String     @id @default(cuid())
+  nom              String
+  email            String     @unique
+  password         String
+  telephone        String?
+  dateNaissance    DateTime?
+  qrCode           String?    @unique
+  fcmToken         String?
+  resetCode        String?
+  resetCodeExpiry  DateTime?
+  createdAt        DateTime   @default(now())
   tampons              Tampon[]
   cashbacks            Cashback[]
   avis                 Avis[]
@@ -102,6 +106,8 @@ model Avis {
   id           String     @id @default(cuid())
   note         Int
   commentaire  String?
+  reponse      String?
+  reponseAt    DateTime?
   createdAt    DateTime   @default(now())
   client       Client     @relation(fields: [clientId], references: [id])
   clientId     String

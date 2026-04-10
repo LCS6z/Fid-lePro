@@ -122,9 +122,36 @@ const envoyerEchecPaiement = async (email, nom) => {
   })
 }
 
+// Email code réinitialisation mot de passe
+const envoyerCodeReset = async (email, nom, code) => {
+  await resend.emails.send({
+    from: FROM,
+    to: email,
+    subject: 'Réinitialisation de votre mot de passe FidèlePro 🔐',
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: linear-gradient(135deg, #6637ee, #9b59b6); padding: 40px; text-align: center; border-radius: 16px 16px 0 0;">
+          <h1 style="color: white; margin: 0; font-size: 32px;">FidèlePro</h1>
+          <p style="color: rgba(255,255,255,0.8); margin-top: 8px;">Réinitialisation du mot de passe</p>
+        </div>
+        <div style="background: #ffffff; padding: 40px; border-radius: 0 0 16px 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
+          <h2 style="color: #333;">Bonjour ${nom} 👋</h2>
+          <p style="color: #666; line-height: 1.6;">Vous avez demandé la réinitialisation de votre mot de passe. Voici votre code :</p>
+          <div style="background: #f5f0ff; border: 2px solid #6637ee; border-radius: 12px; padding: 24px; text-align: center; margin: 24px 0;">
+            <div style="font-size: 40px; font-weight: bold; letter-spacing: 12px; color: #6637ee;">${code}</div>
+          </div>
+          <p style="color: #999; font-size: 13px; line-height: 1.6;">Ce code est valable <strong>15 minutes</strong>. Si vous n'avez pas fait cette demande, ignorez cet email.</p>
+          <p style="color: #999; font-size: 12px; margin-top: 32px; text-align: center;">FidèlePro — Votre programme de fidélité digital</p>
+        </div>
+      </div>
+    `
+  })
+}
+
 module.exports = {
   envoyerBienvenueClient,
   envoyerBienvenueCommercant,
   envoyerConfirmationPaiement,
   envoyerEchecPaiement,
+  envoyerCodeReset,
 }
