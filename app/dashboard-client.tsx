@@ -35,6 +35,7 @@ import { apiClient } from '@/lib/api';
 import { getApiMessage } from '@/lib/api-error';
 import { cache } from '@/lib/cache';
 import type { ClientProfil, Tampon } from '@/lib/types';
+import { getNiveauFidelite } from '@/lib/niveau-fidelite';
 import useNotifications from '../hooks/useNotifications';
 
 type AvisModal = {
@@ -442,6 +443,7 @@ export default function DashboardClient() {
 
   const nbTamponsTotal = tampons.reduce((s, t) => s + t.nombreTampons, 0);
   const nbCartesCompletes = tampons.filter(t => t.nombreTampons >= t.maxTampons).length;
+  const niveau = getNiveauFidelite(nbTamponsTotal);
 
   const tamponsFiltres = useMemo(() => {
     if (filtre === 'complet') return tampons.filter(t => t.nombreTampons >= t.maxTampons);
@@ -511,6 +513,23 @@ export default function DashboardClient() {
               <Text style={styles.statPillValue}>{nbCartesCompletes}</Text>
               <Text style={styles.statPillLabel}>récompenses</Text>
             </View>
+          </Animated.View>
+
+          {/* Niveau de fidélité */}
+          <Animated.View entering={FadeInDown.duration(500).delay(150).springify()} style={[styles.niveauBadge, { borderColor: niveau.couleur }]}>
+            <Text style={styles.niveauEmoji}>{niveau.emoji}</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.niveauLabel, { color: niveau.couleur }]}>Niveau {niveau.label}</Text>
+              {niveau.prochainNiveau && niveau.tamponsRestants != null && (
+                <Text style={styles.niveauNext}>Encore {niveau.tamponsRestants} tampon{niveau.tamponsRestants > 1 ? 's' : ''} pour atteindre {niveau.prochainNiveau}</Text>
+              )}
+              {!niveau.prochainNiveau && (
+                <Text style={styles.niveauNext}>Niveau maximum atteint 🎉</Text>
+              )}
+            </View>
+            <TouchableOpacity onPress={() => router.push('/recompenses-client' as never)} style={[styles.niveauBtn, { backgroundColor: niveau.couleur }]}>
+              <Text style={styles.niveauBtnText}>🏆 Voir</Text>
+            </TouchableOpacity>
           </Animated.View>
         </View>
 
@@ -856,6 +875,26 @@ function makeStyles(theme: Theme) {
     partenairesBtnTitle: { fontSize: 15, fontWeight: 'bold', color: theme.text },
     partenairesBtnSubtitle: { fontSize: 12, color: theme.textMuted, marginTop: 2 },
     partenairesBtnArrow: { fontSize: 24, color: colors.primary, fontWeight: 'bold' },
+    niveauBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.md,
+      backgroundColor: theme.surface,
+      borderRadius: radius.xl,
+      padding: spacing.lg,
+      marginBottom: spacing.md,
+      borderWidth: 1.5,
+      ...shadow.card,
+    },
+    niveauEmoji: { fontSize: 28 },
+    niveauLabel: { fontSize: 15, fontWeight: '700' },
+    niveauNext: { fontSize: 12, color: theme.textMuted, marginTop: 2 },
+    niveauBtn: {
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+      borderRadius: radius.lg,
+    },
+    niveauBtnText: { color: colors.white, fontSize: 12, fontWeight: '700' },
     sectionHeader: {
       marginBottom: spacing.lg,
     },

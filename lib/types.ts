@@ -93,6 +93,26 @@ export type CategoriePartenaires = {
   commerces: Partenaire[];
 };
 
+// ─── Récompenses ─────────────────────────────────────────────────────────────
+
+export type RecompenseValidee = {
+  id: string;
+  createdAt: string;
+  carte: {
+    nom: string;
+    recompense: number | null;
+    commercant: { nom: string };
+  };
+};
+
+export type NiveauFidelite = {
+  label: string;
+  emoji: string;
+  couleur: string;
+  prochainNiveau: string | null;
+  tamponsRestants: number | null;
+};
+
 // ─── Stripe ──────────────────────────────────────────────────────────────────
 
 export type InscriptionCommercantResponse = {

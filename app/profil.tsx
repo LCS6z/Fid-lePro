@@ -6,6 +6,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -43,6 +44,33 @@ export default function Profil() {
   const { toast, showToast, hideToast } = useToast();
 
   const { biometricEnabled, enableBiometric, disableBiometric } = useBiometricLock();
+
+  // Édition profil
+  const [showEditProfil, setShowEditProfil] = useState(false);
+  const [profilNom, setProfilNom] = useState('');
+  const [profilTel, setProfilTel] = useState('');
+  const [loadingProfil, setLoadingProfil] = useState(false);
+
+  useEffect(() => {
+    apiClient.get('/api/client/profil').then(r => {
+      setProfilNom(r.data.nom ?? '');
+      setProfilTel(r.data.telephone ?? '');
+    }).catch(() => {});
+  }, []);
+
+  const sauvegarderProfil = async () => {
+    if (!profilNom.trim()) { showToast('Le nom est requis', 'warning'); return; }
+    setLoadingProfil(true);
+    try {
+      await apiClient.patch('/api/client/profil', { nom: profilNom.trim(), telephone: profilTel.trim() || null });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      showToast('Profil mis à jour', 'success');
+      setShowEditProfil(false);
+    } catch (err: unknown) {
+      showToast(getApiMessage(err, 'Erreur lors de la mise à jour'), 'error');
+    }
+    setLoadingProfil(false);
+  };
 
   const [notifPrefs, setNotifPrefs] = useState<Record<NotifPrefKey, boolean> | null>(null);
 
@@ -122,6 +150,24 @@ export default function Profil() {
   };
 
   const sections: Section[] = [
+    {
+      icon: '✏️',
+      label: 'Modifier mon profil',
+      sublabel: 'Nom, téléphone',
+      onPress: () => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        setShowEditProfil(v => !v);
+      },
+    },
+    {
+      icon: '🏆',
+      label: 'Mes récompenses',
+      sublabel: 'Historique de vos récompenses débloquées',
+      onPress: () => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        router.push('/recompenses-client' as never);
+      },
+    },
     {
       icon: '🔒',
       label: 'Changer le mot de passe',
@@ -289,6 +335,35 @@ export default function Profil() {
             </TouchableOpacity>
 
             {/* Formulaire changement mdp inline */}
+            {s.label === 'Modifier mon profil' && showEditProfil && (
+              <Animated.View entering={FadeInDown.duration(300).springify()} style={styles.mdpForm}>
+                <Text style={[styles.rowSublabel, { marginBottom: spacing.sm }]}>Nom affiché</Text>
+                <TextInput
+                  value={profilNom}
+                  onChangeText={setProfilNom}
+                  placeholder="Votre nom"
+                  placeholderTextColor={theme.textMuted}
+                  style={[styles.textInput, { color: theme.text, borderColor: theme.border, backgroundColor: theme.surface }]}
+                />
+                <Text style={[styles.rowSublabel, { marginBottom: spacing.sm, marginTop: spacing.md }]}>Téléphone</Text>
+                <TextInput
+                  value={profilTel}
+                  onChangeText={setProfilTel}
+                  placeholder="06 00 00 00 00"
+                  placeholderTextColor={theme.textMuted}
+                  keyboardType="phone-pad"
+                  style={[styles.textInput, { color: theme.text, borderColor: theme.border, backgroundColor: theme.surface }]}
+                />
+                <TouchableOpacity
+                  style={[styles.saveBtn, loadingProfil && styles.saveBtnDisabled]}
+                  onPress={sauvegarderProfil}
+                  disabled={loadingProfil}
+                >
+                  <Text style={styles.saveBtnText}>{loadingProfil ? 'Enregistrement...' : 'Enregistrer'}</Text>
+                </TouchableOpacity>
+              </Animated.View>
+            )}
+
             {s.label === 'Changer le mot de passe' && showChangeMdp && (
               <Animated.View entering={FadeInDown.duration(300).springify()} style={styles.mdpForm}>
                 <FormInput
@@ -455,6 +530,12 @@ function makeStyles(theme: Theme) {
     saveBtnText: {
       color: colors.white,
       fontWeight: 'bold',
+      fontSize: 15,
+    },
+    textInput: {
+      borderWidth: 1.5,
+      borderRadius: radius.lg,
+      padding: spacing.md,
       fontSize: 15,
     },
     version: {
