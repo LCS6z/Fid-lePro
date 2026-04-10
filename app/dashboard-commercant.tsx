@@ -299,6 +299,10 @@ export default function DashboardCommercant() {
     if (authLoading) return;
     if (!token) { router.replace('/login'); return; }
     chargerDonnees();
+
+    // Polling toutes les 30s pour stats temps réel
+    const interval = setInterval(() => chargerDonnees(true), 30_000);
+    return () => clearInterval(interval);
   }, [token, authLoading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const onRefresh = () => {

@@ -6,6 +6,7 @@ import { AppState, Platform } from 'react-native';
 import { apiClient } from '@/lib/api';
 import { authStorage } from '@/lib/auth-storage';
 import { clearBadge } from '@/lib/notification-prefs';
+import { notifStore } from '@/lib/notif-store';
 
 const EXPO_PROJECT_ID = 'f2f1be30-74ba-48ce-bbf3-840d0379f2af';
 
@@ -56,9 +57,11 @@ export default function useNotifications() {
       if (state === 'active') clearBadge();
     });
 
-    // Notif reçue pendant que l'app est au premier plan
+    // Notif reçue pendant que l'app est au premier plan → stocker dans l'inbox
     notificationListener.current = Notifications.addNotificationReceivedListener(notification => {
       if (__DEV__) console.log('[Notifications] Reçue:', notification);
+      const { title, body } = notification.request.content;
+      notifStore.ajouter(title ?? 'FidèlePro', body ?? '');
     });
 
     // Utilisateur tape sur une notif → deep link

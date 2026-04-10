@@ -1,4 +1,5 @@
 import * as Haptics from 'expo-haptics';
+import * as Sharing from 'expo-sharing';
 import { router } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -36,6 +37,7 @@ import { getApiMessage } from '@/lib/api-error';
 import { cache } from '@/lib/cache';
 import type { ClientProfil, Tampon } from '@/lib/types';
 import { getNiveauFidelite } from '@/lib/niveau-fidelite';
+import { notifStore } from '@/lib/notif-store';
 import useNotifications from '../hooks/useNotifications';
 
 type AvisModal = {
@@ -358,6 +360,11 @@ export default function DashboardClient() {
   const [note, setNote] = useState(0);
   const [commentaire, setCommentaire] = useState('');
   const [envoyerAvis, setEnvoyerAvis] = useState(false);
+  const [nbNotifs, setNbNotifs] = useState(0);
+
+  useEffect(() => {
+    notifStore.getNbNonLues().then(setNbNotifs);
+  }, []);
 
   const chargerDonnees = async (silent = false) => {
     if (!silent) setLoading(true);
@@ -487,14 +494,30 @@ export default function DashboardClient() {
               <Text style={styles.headerApp}>FidèlePro</Text>
               <Text style={styles.headerBonjour}>Bonjour, {client?.nom?.split(' ')[0]} 👋</Text>
             </View>
-            <TouchableOpacity
-              style={styles.avatarContainer}
-              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowProfil(true); }}
-              accessibilityLabel="Profil"
-              accessibilityRole="button"
-            >
-              <Text style={styles.avatarText}>{client?.nom ? initiales(client.nom) : '?'}</Text>
-            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+              {/* Cloche notifications */}
+              <TouchableOpacity
+                style={styles.headerIconBtn}
+                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setNbNotifs(0); router.push('/notifications-inbox' as never); }}
+                accessibilityLabel="Notifications"
+                accessibilityRole="button"
+              >
+                <Text style={styles.headerIconText}>🔔</Text>
+                {nbNotifs > 0 && (
+                  <View style={styles.badge}>
+                    <Text style={styles.badgeText}>{nbNotifs > 9 ? '9+' : nbNotifs}</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.avatarContainer}
+                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowProfil(true); }}
+                accessibilityLabel="Profil"
+                accessibilityRole="button"
+              >
+                <Text style={styles.avatarText}>{client?.nom ? initiales(client.nom) : '?'}</Text>
+              </TouchableOpacity>
+            </View>
           </Animated.View>
 
           {/* Stats rapides */}
@@ -545,14 +568,30 @@ export default function DashboardClient() {
                 <Text style={styles.qrCardBadgeText}>✓ Actif</Text>
               </View>
             </View>
-            <View style={styles.qrCodeWrapper}>
-              {client?.qrCode ? (
-                <QRCode value={client.qrCode} size={qrSize} />
-              ) : (
-                <View style={[styles.qrCodeWrapper, { backgroundColor: theme.background }]}>
-                  <Text style={styles.qrPlaceholderText}>Indisponible</Text>
-                </View>
-              )}
+            <View style={{ alignItems: 'center', gap: spacing.sm }}>
+              <View style={styles.qrCodeWrapper}>
+                {client?.qrCode ? (
+                  <QRCode value={client.qrCode} size={qrSize} />
+                ) : (
+                  <View style={[styles.qrCodeWrapper, { backgroundColor: theme.background }]}>
+                    <Text style={styles.qrPlaceholderText}>Indisponible</Text>
+                  </View>
+                )}
+              </View>
+              <TouchableOpacity
+                style={styles.qrShareBtn}
+                onPress={async () => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  const msg = `Mon QR code FidèlePro : ${client?.qrCode ?? ''}`;
+                  if (await Sharing.isAvailableAsync()) {
+                    Alert.alert('Partager mon QR', msg);
+                  } else {
+                    Alert.alert('Partager mon QR', msg);
+                  }
+                }}
+              >
+                <Text style={styles.qrShareBtnText}>🔗 Partager</Text>
+              </TouchableOpacity>
             </View>
           </Animated.View>
 
@@ -663,6 +702,14 @@ export default function DashboardClient() {
               accessibilityRole="button"
             >
               <Text style={styles.parametresButtonText}>⚙️ Paramètres</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.parametresButton, { backgroundColor: `${colors.primary}18` }]}
+              onPress={() => { setShowProfil(false); router.push('/parrainage' as never); }}
+              accessibilityLabel="Parrainage"
+              accessibilityRole="button"
+            >
+              <Text style={[styles.parametresButtonText, { color: colors.primary }]}>🎁 Parrainage</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.logoutButton, { marginTop: spacing.sm }]}
@@ -895,6 +942,29 @@ function makeStyles(theme: Theme) {
       borderRadius: radius.lg,
     },
     niveauBtnText: { color: colors.white, fontSize: 12, fontWeight: '700' },
+    headerIconBtn: {
+      width: 40, height: 40, borderRadius: 20,
+      backgroundColor: 'rgba(255,255,255,0.2)',
+      alignItems: 'center', justifyContent: 'center',
+    },
+    headerIconText: { fontSize: 18 },
+    badge: {
+      position: 'absolute', top: -4, right: -4,
+      backgroundColor: colors.error ?? '#e74c3c',
+      borderRadius: 8, minWidth: 16, height: 16,
+      alignItems: 'center', justifyContent: 'center',
+      paddingHorizontal: 3,
+    },
+    badgeText: { color: '#fff', fontSize: 10, fontWeight: 'bold' },
+    qrShareBtn: {
+      backgroundColor: 'rgba(255,255,255,0.15)',
+      borderRadius: radius.lg,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.xs,
+      borderWidth: 1,
+      borderColor: 'rgba(255,255,255,0.3)',
+    },
+    qrShareBtnText: { color: colors.white, fontSize: 13, fontWeight: '600' },
     sectionHeader: {
       marginBottom: spacing.lg,
     },
