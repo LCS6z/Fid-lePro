@@ -1,12 +1,21 @@
 const express = require('express')
 const router = express.Router()
+const rateLimit = require('express-rate-limit')
 const { PrismaClient } = require('@prisma/client')
 const { verifierToken, verifierRole } = require('../middleware/auth')
 
 const prisma = new PrismaClient()
 
+const limiterScan = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  message: { message: 'Trop de scans. Attendez une minute.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+})
+
 // POST /api/scan — le commerçant scanne le QR code d'un client
-router.post('/', verifierToken, verifierRole('commercant'), async (req, res) => {
+router.post('/', limiterScan, verifierToken, verifierRole('commercant'), async (req, res) => {
   try {
     const { qrCode } = req.body
     const commercantId = req.user.id

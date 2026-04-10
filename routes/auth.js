@@ -2,13 +2,32 @@ const express = require('express')
 const router = express.Router()
 const bcrypt = require('bcrypt')
 const jwt = require('jsonwebtoken')
+const rateLimit = require('express-rate-limit')
 const { PrismaClient } = require('@prisma/client')
 const { v4: uuidv4 } = require('uuid')
 const prisma = new PrismaClient()
 const { envoyerBienvenueClient } = require('../services/email')
 
+// Max 10 tentatives de connexion par IP toutes les 15 minutes
+const limiterConnexion = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: { message: 'Trop de tentatives. Réessayez dans 15 minutes.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+})
+
+// Max 5 inscriptions par IP par heure
+const limiterInscription = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 5,
+  message: { message: 'Trop d\'inscriptions depuis cette adresse. Réessayez plus tard.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+})
+
 // Inscription client
-router.post('/inscription/client', async (req, res) => {
+router.post('/inscription/client', limiterInscription, async (req, res) => {
   try {
     const { nom, email, password } = req.body
 
@@ -35,7 +54,7 @@ router.post('/inscription/client', async (req, res) => {
 })
 
 // Connexion client
-router.post('/connexion/client', async (req, res) => {
+router.post('/connexion/client', limiterConnexion, async (req, res) => {
   try {
     const { email, password } = req.body
 
@@ -58,7 +77,7 @@ router.post('/connexion/client', async (req, res) => {
 })
 
 // Connexion commerçant
-router.post('/connexion/commercant', async (req, res) => {
+router.post('/connexion/commercant', limiterConnexion, async (req, res) => {
   try {
     const { email, password } = req.body
 
@@ -119,7 +138,7 @@ router.post('/connexion/commercant', async (req, res) => {
 })
 
 // Connexion admin
-router.post('/connexion/admin', async (req, res) => {
+router.post('/connexion/admin', limiterConnexion, async (req, res) => {
   try {
     const { email, password } = req.body
 

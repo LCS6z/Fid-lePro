@@ -173,6 +173,7 @@ router.get('/partenaires', verifierToken, verifierRole('client'), async (req, re
         adresse: true,
         telephone: true,
         lienGoogle: true,
+        horaires: true,
       },
       orderBy: [{ categorie: 'asc' }, { nom: 'asc' }]
     })

@@ -125,4 +125,42 @@ router.delete('/client/:id', verifierToken, verifierRole('admin'), async (req, r
   }
 })
 
+// PATCH /api/admin/commercant/:id/partenaire — gérer le statut partenaire
+router.patch('/commercant/:id/partenaire', verifierToken, verifierRole('admin'), async (req, res) => {
+  try {
+    const { id } = req.params
+    const { estPartenaire, categorie, description, horaires } = req.body
+    const commercant = await prisma.commercant.update({
+      where: { id },
+      data: {
+        ...(estPartenaire !== undefined && { estPartenaire }),
+        ...(categorie !== undefined && { categorie }),
+        ...(description !== undefined && { description }),
+        ...(horaires !== undefined && { horaires }),
+      },
+      select: { id: true, nom: true, estPartenaire: true, categorie: true, description: true, horaires: true }
+    })
+    res.json({ message: 'Partenaire mis à jour', commercant })
+  } catch (err) {
+    res.status(500).json({ message: 'Erreur serveur', erreur: err.message })
+  }
+})
+
+// GET /api/admin/recompenses — historique global des récompenses validées
+router.get('/recompenses', verifierToken, verifierRole('admin'), async (req, res) => {
+  try {
+    const recompenses = await prisma.recompenseValidee.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+      include: {
+        client: { select: { nom: true, email: true } },
+        carte: { include: { commercant: { select: { nom: true } } } }
+      }
+    })
+    res.json({ recompenses, total: recompenses.length })
+  } catch (err) {
+    res.status(500).json({ message: 'Erreur serveur', erreur: err.message })
+  }
+})
+
 module.exports = router
