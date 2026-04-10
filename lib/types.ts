@@ -44,6 +44,31 @@ export type ClientCommercant = {
   derniereScan: string | null;
 };
 
+export type ClientRecompense = {
+  clientId: string;
+  nom: string;
+  email: string;
+  carteId: string;
+  carteName: string;
+  recompense: number | null;
+};
+
+export type StatsCourbe = {
+  date: string;
+  scans: number;
+  clients: number;
+};
+
+export type StatsAvancees = {
+  courbe30j: StatsCourbe[];
+  recap: {
+    scansMois: number;
+    clientsUniques30j: number;
+    recompensesMois: number;
+    totalScans: number;
+  };
+};
+
 export type ScanResult = {
   client?: { nom: string };
   totalTampons: number;
@@ -60,6 +85,7 @@ export type Partenaire = {
   adresse: string | null;
   telephone: string | null;
   lienGoogle: string | null;
+  horaires: string | null;
 };
 
 export type CategoriePartenaires = {

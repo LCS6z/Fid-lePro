@@ -92,6 +92,8 @@ function AppContent() {
         <Stack.Screen name="profil" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="mot-de-passe-oublie" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="partenaires" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="stats-commercant" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="campagne" options={{ animation: 'slide_from_right' }} />
       </Stack>
       {lockState === 'locked' && <BiometricLock onUnlock={unlock} />}
     </>

@@ -30,26 +30,26 @@ describe('Onboarding screen', () => {
     renderScreen();
     fireEvent.press(screen.getByText('Suivant \u2192'));
     await waitFor(() => {
-      expect(screen.getByText('Scannez, cumulez')).toBeTruthy();
+      expect(screen.getByText('Scannez et cumulez')).toBeTruthy();
     });
   });
 
   it('passe au slide 3 apres deux Suivant', async () => {
     renderScreen();
     fireEvent.press(screen.getByText('Suivant \u2192'));
-    await waitFor(() => screen.getByText('Scannez, cumulez'));
+    await waitFor(() => screen.getByText('Scannez et cumulez'));
     fireEvent.press(screen.getByText('Suivant \u2192'));
     await waitFor(() => {
-      expect(screen.getByText("Récoltez vos récompenses")).toBeTruthy();
+      expect(screen.getByText("Commerces partenaires")).toBeTruthy();
     });
   });
 
   it("affiche C'est parti sur le dernier slide", async () => {
     renderScreen();
     fireEvent.press(screen.getByText('Suivant \u2192'));
-    await waitFor(() => screen.getByText('Scannez, cumulez'));
+    await waitFor(() => screen.getByText('Scannez et cumulez'));
     fireEvent.press(screen.getByText('Suivant \u2192'));
-    await waitFor(() => screen.getByText("Récoltez vos récompenses"));
+    await waitFor(() => screen.getByText("Commerces partenaires"));
     expect(screen.getByText("C'est parti ! \uD83D\uDE80")).toBeTruthy();
   });
 
@@ -65,9 +65,9 @@ describe('Onboarding screen', () => {
   it("C'est parti enregistre onboarding_done et redirige vers /login", async () => {
     renderScreen();
     fireEvent.press(screen.getByText('Suivant \u2192'));
-    await waitFor(() => screen.getByText('Scannez, cumulez'));
+    await waitFor(() => screen.getByText('Scannez et cumulez'));
     fireEvent.press(screen.getByText('Suivant \u2192'));
-    await waitFor(() => screen.getByText("Récoltez vos récompenses"));
+    await waitFor(() => screen.getByText("Commerces partenaires"));
     fireEvent.press(screen.getByText("C'est parti ! \uD83D\uDE80"));
     await waitFor(() => {
       expect(SecureStore.setItemAsync).toHaveBeenCalledWith('onboarding_done', '1');
@@ -78,9 +78,9 @@ describe('Onboarding screen', () => {
   it("le dernier slide n'a pas de bouton Passer", async () => {
     renderScreen();
     fireEvent.press(screen.getByText('Suivant \u2192'));
-    await waitFor(() => screen.getByText('Scannez, cumulez'));
+    await waitFor(() => screen.getByText('Scannez et cumulez'));
     fireEvent.press(screen.getByText('Suivant \u2192'));
-    await waitFor(() => screen.getByText("Récoltez vos récompenses"));
+    await waitFor(() => screen.getByText("Commerces partenaires"));
     expect(screen.queryByText('Passer')).toBeNull();
   });
 });

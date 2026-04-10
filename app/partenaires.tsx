@@ -80,6 +80,13 @@ function CartePartenaire({ partenaire, index }: { partenaire: Partenaire; index:
         <Text style={styles.cardDescription}>{partenaire.description}</Text>
       ) : null}
 
+      {partenaire.horaires ? (
+        <View style={styles.horairesRow}>
+          <Text style={styles.horairesIcon}>🕐</Text>
+          <Text style={styles.horairesText}>{partenaire.horaires}</Text>
+        </View>
+      ) : null}
+
       {(partenaire.telephone || partenaire.adresse || partenaire.lienGoogle) ? (
         <View style={styles.actions}>
           {partenaire.telephone ? (
@@ -354,6 +361,14 @@ function makeStyles(theme: Theme) {
       flexShrink: 0,
     },
     badgePartenaireText: { color: colors.success, fontSize: 10, fontWeight: 'bold' },
+    horairesRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+      marginBottom: spacing.sm,
+    },
+    horairesIcon: { fontSize: 13 },
+    horairesText: { fontSize: 12, color: theme.textMuted, flex: 1 },
     cardDescription: {
       fontSize: 13,
       color: theme.textMuted,

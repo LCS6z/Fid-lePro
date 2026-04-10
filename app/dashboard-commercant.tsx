@@ -24,7 +24,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 import { apiClient } from '@/lib/api';
 import { cache } from '@/lib/cache';
-import type { ClientCommercant, ScanResult } from '@/lib/types';
+import type { ClientCommercant, ClientRecompense, ScanResult } from '@/lib/types';
 import useNotifications from '@/hooks/useNotifications';
 
 type Stats = {
@@ -194,6 +194,43 @@ export default function DashboardCommercant() {
   const [recherche, setRecherche] = useState('');
   const [permission, requestPermission] = useCameraPermissions();
   const { toast, showToast, hideToast } = useToast();
+  const [recompenses, setRecompenses] = useState<ClientRecompense[]>([]);
+  const [showRecompenses, setShowRecompenses] = useState(false);
+
+  const chargerRecompenses = useCallback(async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try {
+      const res = await apiClient.get<{ enAttente: ClientRecompense[] }>('/api/commercant/clients-recompenses');
+      setRecompenses(res.data.enAttente);
+      setShowRecompenses(true);
+    } catch {
+      showToast('Impossible de charger les récompenses', 'error');
+    }
+  }, [showToast]);
+
+  const validerRecompense = useCallback(async (clientId: string, carteId: string, nom: string) => {
+    Alert.alert(
+      '✅ Valider la récompense',
+      `Confirmer la remise de la récompense à ${nom} ? Sa carte repart de zéro.`,
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Valider', onPress: async () => {
+            try {
+              await apiClient.post('/api/commercant/valider-recompense', { clientId, carteId });
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              setRecompenses(r => r.filter(x => !(x.clientId === clientId && x.carteId === carteId)));
+              showToast(`Récompense validée pour ${nom}`, 'success');
+              chargerDonnees(true);
+            } catch {
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+              showToast('Erreur lors de la validation', 'error');
+            }
+          }
+        },
+      ]
+    );
+  }, [showToast]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const scansAujourdhui = useMemo(() => {
     const today = new Date().toISOString().slice(0, 10);
@@ -382,6 +419,22 @@ export default function DashboardCommercant() {
                 <Text style={styles.scanButtonText}>Scanner un client</Text>
               </TouchableOpacity>
             </Animated.View>
+
+            {/* Raccourcis stats + campagne */}
+            <Animated.View entering={FadeInDown.duration(600).delay(180).springify()} style={styles.raccourcisRow}>
+              <TouchableOpacity style={styles.raccourciBtn} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push('/stats-commercant' as any); }}> {/* eslint-disable-line @typescript-eslint/no-explicit-any */}
+                <Text style={styles.raccourciIcon}>📊</Text>
+                <Text style={styles.raccourciText}>Stats</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.raccourciBtn} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push('/campagne' as any); }}> {/* eslint-disable-line @typescript-eslint/no-explicit-any */}
+                <Text style={styles.raccourciIcon}>📢</Text>
+                <Text style={styles.raccourciText}>Campagne</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.raccourciBtn} onPress={chargerRecompenses}>
+                <Text style={styles.raccourciIcon}>🎁</Text>
+                <Text style={styles.raccourciText}>Récompenses</Text>
+              </TouchableOpacity>
+            </Animated.View>
           </View>
 
           {/* Stats */}
@@ -505,6 +558,36 @@ export default function DashboardCommercant() {
         </View>
       </Modal>
 
+      {/* Modal Récompenses en attente */}
+      <Modal visible={showRecompenses} transparent animationType="slide" statusBarTranslucent>
+        <View style={styles.modalOverlay}>
+          <Animated.View entering={FadeInDown.duration(400).springify()} style={[styles.modalCard, { paddingBottom: insets.bottom + spacing.lg }]}>
+            <View style={styles.modalHandle} />
+            <Text style={styles.modalTitle}>🎁 Récompenses en attente</Text>
+            <Text style={[styles.modalSurtitle, { marginBottom: spacing.xl }]}>
+              {recompenses.length === 0 ? 'Aucune récompense à valider' : `${recompenses.length} client(s) à récompenser`}
+            </Text>
+            {recompenses.map((r, i) => (
+              <Animated.View key={`${r.clientId}-${r.carteId}`} entering={FadeInDown.duration(300).delay(i * 60).springify()} style={styles.recompenseRow}>
+                <View style={styles.recompenseInfo}>
+                  <Text style={styles.recompenseNom}>{r.nom}</Text>
+                  <Text style={styles.recompenseCarte}>{r.carteName}{r.recompense ? ` — ${r.recompense}€` : ''}</Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.validerBtn}
+                  onPress={() => validerRecompense(r.clientId, r.carteId, r.nom)}
+                >
+                  <Text style={styles.validerBtnText}>✓ Valider</Text>
+                </TouchableOpacity>
+              </Animated.View>
+            ))}
+            <TouchableOpacity style={styles.closeBtnSecondary} onPress={() => setShowRecompenses(false)}>
+              <Text style={styles.closeBtnSecondaryText}>Fermer</Text>
+            </TouchableOpacity>
+          </Animated.View>
+        </View>
+      </Modal>
+
       <Toast
         visible={!!toast}
         message={toast?.message ?? ''}
@@ -587,6 +670,40 @@ function makeStyles(theme: Theme) {
     avatarText: {
       fontSize: 20,
     },
+    raccourcisRow: {
+      flexDirection: 'row',
+      gap: spacing.sm,
+      marginTop: spacing.md,
+    },
+    raccourciBtn: {
+      flex: 1,
+      backgroundColor: 'rgba(255,255,255,0.15)',
+      borderRadius: radius.lg,
+      paddingVertical: spacing.md,
+      alignItems: 'center',
+      gap: 4,
+    },
+    raccourciIcon: { fontSize: 18 },
+    raccourciText: { color: colors.white, fontSize: 11, fontWeight: '600' },
+    recompenseRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: theme.surfaceSecondary,
+      borderRadius: radius.xl,
+      padding: spacing.md,
+      marginBottom: spacing.sm,
+      gap: spacing.md,
+    },
+    recompenseInfo: { flex: 1 },
+    recompenseNom: { fontSize: 14, fontWeight: 'bold', color: theme.text },
+    recompenseCarte: { fontSize: 12, color: theme.textMuted, marginTop: 2 },
+    validerBtn: {
+      backgroundColor: colors.success,
+      borderRadius: radius.md,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+    },
+    validerBtnText: { color: colors.white, fontSize: 13, fontWeight: 'bold' },
     scanButton: {
       backgroundColor: colors.white,
       borderRadius: radius.xl,
