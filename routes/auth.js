@@ -65,13 +65,11 @@ router.post('/connexion/client', limiterConnexion, async (req, res) => {
     const valide = await bcrypt.compare(password, client.password)
     if (!valide) return res.status(400).json({ message: 'Email ou mot de passe incorrect' })
 
-    const token = jwt.sign(
-      { id: client.id, role: 'client' },
-      process.env.JWT_SECRET,
-      { expiresIn: '7d' }
-    )
+    const token = jwt.sign({ id: client.id, role: 'client' }, process.env.JWT_SECRET, { expiresIn: '1h' })
+    const refreshToken = uuidv4()
+    await prisma.client.update({ where: { id: client.id }, data: { refreshToken } })
 
-    res.json({ message: 'Connexion réussie', token, role: 'client' })
+    res.json({ message: 'Connexion réussie', token, refreshToken, role: 'client' })
   } catch (err) {
     res.status(500).json({ message: 'Erreur serveur', erreur: err.message })
   }
@@ -116,15 +114,14 @@ router.post('/connexion/commercant', limiterConnexion, async (req, res) => {
       })
     }
 
-    const token = jwt.sign(
-      { id: commercant.id, role: 'commercant' },
-      process.env.JWT_SECRET,
-      { expiresIn: '7d' }
-    )
+    const token = jwt.sign({ id: commercant.id, role: 'commercant' }, process.env.JWT_SECRET, { expiresIn: '1h' })
+    const refreshToken = uuidv4()
+    await prisma.commercant.update({ where: { id: commercant.id }, data: { refreshToken } })
 
     res.json({
       message: 'Connexion réussie',
       token,
+      refreshToken,
       role: 'commercant',
       commercant: {
         id: commercant.id,
@@ -161,6 +158,39 @@ router.post('/connexion/admin', limiterConnexion, async (req, res) => {
       role: 'admin',
       admin: { id: admin.id, nom: admin.nom, email: admin.email }
     })
+  } catch (err) {
+    res.status(500).json({ message: 'Erreur serveur', erreur: err.message })
+  }
+})
+
+// POST /api/auth/refresh — renouvelle le token d'accès via le refresh token
+router.post('/refresh', async (req, res) => {
+  try {
+    const { refreshToken } = req.body
+    if (!refreshToken) return res.status(400).json({ message: 'refreshToken requis' })
+
+    // Chercher client ou commerçant avec ce refreshToken
+    const client = await prisma.client.findUnique({ where: { refreshToken } })
+    const commercant = !client ? await prisma.commercant.findUnique({ where: { refreshToken } }) : null
+
+    if (!client && !commercant) {
+      return res.status(401).json({ message: 'Refresh token invalide ou expiré' })
+    }
+
+    const user = client || commercant
+    const role = client ? 'client' : 'commercant'
+
+    // Nouveau access token (1h) + rotation du refresh token
+    const newToken = jwt.sign({ id: user.id, role }, process.env.JWT_SECRET, { expiresIn: '1h' })
+    const newRefreshToken = uuidv4()
+
+    if (client) {
+      await prisma.client.update({ where: { id: user.id }, data: { refreshToken: newRefreshToken } })
+    } else {
+      await prisma.commercant.update({ where: { id: user.id }, data: { refreshToken: newRefreshToken } })
+    }
+
+    res.json({ token: newToken, refreshToken: newRefreshToken })
   } catch (err) {
     res.status(500).json({ message: 'Erreur serveur', erreur: err.message })
   }

@@ -37,6 +37,7 @@ model Commercant {
   horaires             String?
   resetCode            String?
   resetCodeExpiry      DateTime?
+  refreshToken         String?    @unique
 
   cartes               Carte[]
   avis                 Avis[]
@@ -53,6 +54,7 @@ model Client {
   fcmToken         String?
   resetCode        String?
   resetCodeExpiry  DateTime?
+  refreshToken     String?    @unique
   createdAt        DateTime   @default(now())
   tampons              Tampon[]
   cashbacks            Cashback[]
