@@ -6,6 +6,20 @@ const { envoyerNotification } = require('../services/notification')
 
 const prisma = new PrismaClient()
 
+// GET /api/commercant/cartes — liste les cartes du commerçant
+router.get('/cartes', verifierToken, verifierRole('commercant'), async (req, res) => {
+  try {
+    const cartes = await prisma.carte.findMany({
+      where: { commercantId: req.user.id },
+      include: { _count: { select: { tampons: true } } },
+      orderBy: { createdAt: 'desc' }
+    })
+    res.json({ cartes })
+  } catch (err) {
+    res.status(500).json({ message: 'Erreur serveur', erreur: err.message })
+  }
+})
+
 // Créer une carte de fidélité
 router.post('/carte', verifierToken, verifierRole('commercant'), async (req, res) => {
   try {
