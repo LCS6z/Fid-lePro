@@ -197,6 +197,40 @@ router.get('/partenaires', verifierToken, verifierRole('client'), async (req, re
   }
 })
 
+// GET /api/client/parrainage — code de parrainage + stats
+router.get('/parrainage', verifierToken, verifierRole('client'), async (req, res) => {
+  try {
+    const client = await prisma.client.findUnique({
+      where: { id: req.user.id },
+      select: { codeParrainage: true }
+    })
+    const nbFilleuls = await prisma.client.count({ where: { parrainId: req.user.id } })
+    res.json({ codeParrainage: client?.codeParrainage, nbFilleuls })
+  } catch (err) {
+    res.status(500).json({ message: 'Erreur serveur', erreur: err.message })
+  }
+})
+
+// POST /api/client/valider-parrainage — appliquer un code parrain après inscription
+router.post('/valider-parrainage', verifierToken, verifierRole('client'), async (req, res) => {
+  try {
+    const { code } = req.body
+    if (!code) return res.status(400).json({ message: 'Code requis' })
+
+    const client = await prisma.client.findUnique({ where: { id: req.user.id } })
+    if (client?.parrainId) return res.status(400).json({ message: 'Vous avez déjà utilisé un code parrain' })
+
+    const parrain = await prisma.client.findUnique({ where: { codeParrainage: code.toUpperCase() } })
+    if (!parrain) return res.status(404).json({ message: 'Code parrain invalide' })
+    if (parrain.id === req.user.id) return res.status(400).json({ message: 'Vous ne pouvez pas utiliser votre propre code' })
+
+    await prisma.client.update({ where: { id: req.user.id }, data: { parrainId: parrain.id } })
+    res.json({ message: 'Code parrain appliqué avec succès !' })
+  } catch (err) {
+    res.status(500).json({ message: 'Erreur serveur', erreur: err.message })
+  }
+})
+
 // PATCH /api/client/profil — met à jour nom et téléphone
 router.patch('/profil', verifierToken, verifierRole('client'), async (req, res) => {
   try {

@@ -38,8 +38,21 @@ router.post('/inscription/client', limiterInscription, async (req, res) => {
     const hash = await bcrypt.hash(password, 10)
     const qrCode = uuidv4()
 
+    // Générer un code de parrainage unique
+    let codeParrainage
+    do {
+      codeParrainage = Math.random().toString(36).substring(2, 8).toUpperCase()
+    } while (await prisma.client.findUnique({ where: { codeParrainage } }))
+
+    // Vérifier si un code parrain a été fourni
+    let parrainId = null
+    if (req.body.codeParrain) {
+      const parrain = await prisma.client.findUnique({ where: { codeParrainage: req.body.codeParrain.toUpperCase() } })
+      if (parrain) parrainId = parrain.id
+    }
+
     const client = await prisma.client.create({
-      data: { nom, email, password: hash, qrCode }
+      data: { nom, email, password: hash, qrCode, codeParrainage, parrainId }
     })
 
     try {
