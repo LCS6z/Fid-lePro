@@ -3,6 +3,7 @@ const router = express.Router()
 const rateLimit = require('express-rate-limit')
 const { PrismaClient } = require('@prisma/client')
 const { verifierToken, verifierRole } = require('../middleware/auth')
+const { envoyerNotification } = require('../services/notification')
 
 const prisma = new PrismaClient()
 
@@ -44,6 +45,29 @@ router.post('/', limiterScan, verifierToken, verifierRole('commercant'), async (
     let recompense = null
     if (carte.maxTampons && totalTampons >= carte.maxTampons) {
       recompense = `Récompense débloquée : ${carte.recompense}€ !`
+    }
+
+    // Notif push au client (fire-and-forget)
+    if (client.fcmToken) {
+      const commercant = await prisma.commercant.findUnique({
+        where: { id: commercantId },
+        select: { nom: true }
+      })
+      if (recompense) {
+        envoyerNotification(
+          client.fcmToken,
+          '🎁 Récompense disponible !',
+          `Carte complète chez ${commercant.nom} — votre récompense de ${carte.recompense}€ vous attend !`,
+          { screen: 'dashboard-client', type: 'recompense_dispo' }
+        ).catch(() => {})
+      } else {
+        envoyerNotification(
+          client.fcmToken,
+          '✅ Tampon ajouté !',
+          `${commercant.nom} vous a ajouté un tampon (${totalTampons}/${carte.maxTampons ?? '?'}).`,
+          { screen: 'dashboard-client', type: 'tampon_ajoute' }
+        ).catch(() => {})
+      }
     }
 
     res.json({

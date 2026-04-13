@@ -5,6 +5,7 @@ const dotenv = require('dotenv')
 dotenv.config()
 
 const { demarrerCronRelance } = require('./services/relanceInactifs')
+const { demarrerCronStats } = require('./services/statsQuotidiennes')
 
 const app = express()
 app.use(cors())
@@ -46,4 +47,5 @@ const PORT = process.env.PORT || 3000
 app.listen(PORT, () => {
   console.log(`Serveur démarré sur le port ${PORT}`)
   demarrerCronRelance()
+  demarrerCronStats()
 })
