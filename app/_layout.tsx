@@ -1,3 +1,5 @@
+// Enregistrement de la tâche de géofencing — doit être importé avant tout rendu
+import '@/lib/geofencing';
 import * as Sentry from '@sentry/react-native';
 import * as Notifications from 'expo-notifications';
 import * as Updates from 'expo-updates';

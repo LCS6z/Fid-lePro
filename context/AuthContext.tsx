@@ -2,6 +2,7 @@ import { router } from 'expo-router';
 import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { authStorage, type UserRole } from '@/lib/auth-storage';
 import { cache } from '@/lib/cache';
+import { arreterGeofencing, demarrerGeofencing } from '@/lib/geofencing';
 
 type AuthState = {
   token: string | null;
@@ -37,10 +38,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await authStorage.setSession(newToken, newRole, refreshToken);
     setToken(newToken);
     setRole(newRole);
+    // Géofencing uniquement pour les clients
+    if (newRole === 'client') demarrerGeofencing().catch(() => {});
   }, []);
 
   const logout = useCallback(async () => {
-    await Promise.all([authStorage.clear(), cache.clear()]);
+    await Promise.all([authStorage.clear(), cache.clear(), arreterGeofencing()]);
     setToken(null);
     setRole(null);
     router.replace('/login');
