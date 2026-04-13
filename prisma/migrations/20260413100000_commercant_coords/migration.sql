@@ -1,0 +1,2 @@
+ALTER TABLE "Commercant" ADD COLUMN "latitude" DOUBLE PRECISION;
+ALTER TABLE "Commercant" ADD COLUMN "longitude" DOUBLE PRECISION;

@@ -23,13 +23,15 @@ router.get('/profil', verifierToken, verifierRole('commercant'), async (req, res
 // PATCH /api/commercant/profil — met à jour les infos du commerçant
 router.patch('/profil', verifierToken, verifierRole('commercant'), async (req, res) => {
   try {
-    const { nom, telephone, adresse, description, horaires } = req.body
+    const { nom, telephone, adresse, description, horaires, latitude, longitude } = req.body
     const data = {}
     if (nom && nom.trim()) data.nom = nom.trim()
     if (telephone !== undefined) data.telephone = telephone || null
     if (adresse !== undefined) data.adresse = adresse || null
     if (description !== undefined) data.description = description || null
     if (horaires !== undefined) data.horaires = horaires || null
+    if (latitude !== undefined) data.latitude = latitude !== null ? parseFloat(latitude) : null
+    if (longitude !== undefined) data.longitude = longitude !== null ? parseFloat(longitude) : null
 
     const commercant = await prisma.commercant.update({
       where: { id: req.user.id },

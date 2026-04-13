@@ -35,6 +35,8 @@ model Commercant {
   categorie            String?
   description          String?
   horaires             String?
+  latitude             Float?
+  longitude            Float?
   resetCode            String?
   resetCodeExpiry      DateTime?
   refreshToken         String?    @unique

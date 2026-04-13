@@ -268,6 +268,38 @@ router.get('/recompenses', verifierToken, verifierRole('client'), async (req, re
   }
 })
 
+// GET /api/client/commercants-geo — coords des commerçants où le client a des tampons
+router.get('/commercants-geo', verifierToken, verifierRole('client'), async (req, res) => {
+  try {
+    const tampons = await prisma.tampon.findMany({
+      where: { clientId: req.user.id },
+      select: {
+        carte: {
+          select: {
+            commercant: {
+              select: { id: true, nom: true, latitude: true, longitude: true }
+            }
+          }
+        }
+      }
+    })
+
+    const seen = new Set()
+    const commercants = []
+    for (const t of tampons) {
+      const c = t.carte.commercant
+      if (!seen.has(c.id) && c.latitude && c.longitude) {
+        seen.add(c.id)
+        commercants.push(c)
+      }
+    }
+
+    res.json({ commercants })
+  } catch (err) {
+    res.status(500).json({ message: 'Erreur serveur', erreur: err.message })
+  }
+})
+
 // POST /api/client/fcm-token
 router.post('/fcm-token', verifierToken, verifierRole('client'), async (req, res) => {
   try {
