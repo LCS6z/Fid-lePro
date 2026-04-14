@@ -22,6 +22,9 @@ const renderScreen = async () => {
     if (key === 'role') return Promise.resolve('client');
     return Promise.resolve(null);
   });
+  (apiClient.get as jest.Mock).mockResolvedValue({
+    data: { id: 'c1', nom: 'Jean Test', email: 'jean@test.fr', telephone: '0600000000', qrCode: 'QR123' }
+  });
   render(
     <ThemeProvider>
       <AuthProvider>

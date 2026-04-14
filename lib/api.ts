@@ -32,8 +32,8 @@ apiClient.interceptors.response.use(
       console.warn(`[API] ${status ?? 'ERR'} — ${url}`, error?.response?.data);
     }
 
-    if (error?.response?.status === 401 && !error?.config?._retry) {
-      error.config._retry = true;
+    if (error?.response?.status === 401 && !error?.config?._retry401) {
+      error.config._retry401 = true;
 
       try {
         const refreshToken = await SecureStore.getItemAsync('refreshToken');

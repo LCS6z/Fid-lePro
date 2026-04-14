@@ -12,6 +12,9 @@ module.exports = {
     '^expo/src/winter/(.*)$': '<rootDir>/__mocks__/emptyMock.js',
     '^expo/virtual/streams$': '<rootDir>/__mocks__/emptyMock.js',
     '^expo/virtual/(.*)$': '<rootDir>/__mocks__/emptyMock.js',
+    // Modules natifs non supportés par Jest
+    '^expo-location$': '<rootDir>/__mocks__/expo-location.js',
+    '^expo-task-manager$': '<rootDir>/__mocks__/expo-task-manager.js',
   },
   testMatch: ['**/__tests__/**/*.test.{ts,tsx}'],
   collectCoverageFrom: [
